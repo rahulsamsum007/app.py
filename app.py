@@ -1,48 +1,88 @@
 import streamlit as st
-from transformers import VisionEncoderDecoderModel, ViTFeatureExtractor, AutoTokenizer
-import torch
+import gradio as gr
+from datasets import load_dataset
 from PIL import Image
+import re
+import os
+import requests
 
-model = VisionEncoderDecoderModel.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-feature_extractor = ViTFeatureExtractor.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-tokenizer = AutoTokenizer.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
+from share_btn import community_icon_html, loading_icon_html, share_js
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
+word_list_dataset = load_dataset("stabilityai/word-list", data_files="list.txt", use_auth_token=True)
+word_list = word_list_dataset["train"]["text"]
 
-max_length = 16
-num_beams = 4
-gen_kwargs = {"max_length": max_length, "num_beams": num_beams}
+is_gpu_busy = False
 
-@st.cache(allow_output_mutation=True)
-def predict_step(image_paths):
+
+def infer(prompt, negative, scale):
+    global is_gpu_busy
+    for filter in word_list:
+        if re.search(rf"\\b{filter}\\b", prompt):
+            raise gr.InterfaceError("Unsafe content found. Please try again with different prompts.")
+
     images = []
-    for image_path in image_paths:
-        i_image = Image.open(image_path)
-        if i_image.mode != "RGB":
-            i_image = i_image.convert(mode="RGB")
-        images.append(i_image)
+    url = os.getenv("JAX_BACKEND_URL")
+    payload = {"prompt": prompt, "negative_prompt": negative, "guidance_scale": scale}
+    images_request = requests.post(url, json=payload)
+    for image in images_request.json()["images"]:
+        image_b64 = f"data:image/jpeg;base64,{image}"
+        images.append(image_b64)
 
-    pixel_values = feature_extractor(images=images, return_tensors="pt").pixel_values
-    pixel_values = pixel_values.to(device)
+    return images
 
-    output_ids = model.generate(pixel_values, **gen_kwargs)
 
-    preds = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
-    preds = [pred.strip() for pred in preds]
-    return preds
+css = """
+    /* CSS styles here */
+"""
 
-def main():
-    st.title("Image Captioning App")
-    uploaded_file = st.file_uploader("Choose an image", type=["jpg", "jpeg", "png"])
+examples = [
+    [
+        "A high tech solarpunk utopia in the Amazon rainforest",
+        "low quality",
+        9
+    ],
+    [
+        "A pikachu fine dining with a view to the Eiffel Tower",
+        "low quality",
+        9
+    ],
+    [
+        "A mecha robot in a favela in expressionist style",
+        "low quality, 3d, photorealistic",
+        9
+    ],
+    [
+        "an insect robot preparing a delicious meal",
+        "low quality, illustration",
+         9
+    ],
+    [
+        "A small cabin on top of a snowy mountain in the style of Disney, artstation",
+        "low quality, ugly",
+        9
+    ],
+]
 
-    if uploaded_file is not None:
-        image = Image.open(uploaded_file)
-        preds = predict_step([uploaded_file])
-        st.image(image, caption="Uploaded Image", use_column_width=True)
-        st.success("Generated Captions:")
-        for i, pred in enumerate(preds):
-            st.write(f"{i+1}. {pred}")
+st.set_page_config(layout="wide")
+st.markdown(
+    """
+        <div style="text-align: center; margin: 0 auto;">
+          <div style="display: inline-flex; align-items: center; gap: 0.8rem; font-size: 1.75rem;">
+            <svg width="0.65em" height="0.65em" viewBox="0 0 115 115" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- SVG content here -->
+            </svg>
+            <h1 style="font-weight: 900; margin-bottom: 7px;margin-top:5px">Stable Diffusion 2.1 Demo</h1>
+          </div>
+          <p style="margin-bottom: 10px; font-size: 94%; line-height: 23px;">
+            Stable Diffusion 2.1 is the latest text-to-image model from StabilityAI. <a style="text-decoration: underline;" href="https://huggingface.co/spaces/stabilityai/stable-diffusion-1">Access Stable Diffusion 1 Space here</a><br>For faster generation and API
+            access you can try
+            <a href="http://beta.dreamstudio.ai/" style="text-decoration: underline;" target="_blank">DreamStudio Beta</a>.</a>
+          </p>
+        </div>
+    """,
+    unsafe_allow_html=True
+)
 
-if __name__ == "__main__":
-    main()
+# Create input components
+prompt_text_input = st.text_input(label="Enter your prompt", max_chars=None, key=None, type='default')
+negative_prompt_text_input = st.text_input.
