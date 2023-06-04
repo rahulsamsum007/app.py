@@ -1,18 +1,21 @@
-from setuptools import setup, find_packages
+import setuptools
 
-setup(
-    name='streamlit-app',
-    version='0.1',
-    packages=find_packages(),
-    include_package_data=True,
-    install_requires=[
-        'streamlit',
-        'torch',
-        'transformers'
+setuptools.setup(
+    name="summarizer_app",
+    version="1.0",
+    author="Your Name",
+    author_email="your_email@example.com",
+    description="A text summarization app using Streamlit",
+    packages=setuptools.find_packages(),
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
     ],
-    entry_points={
-        'console_scripts': [
-            'streamlit-app = app:main'
-        ]
-    },
+    install_requires=[
+        "streamlit",
+        "spacy",
+        "en_core_web_sm"
+    ],
+    python_requires=">=3.6",
 )
