@@ -1,3 +1,9 @@
-SELECT r.StudentID, r.StudentName, r.EnrolledClass, s.Class, s.ExamDate, s.Subject, s.Marks
-FROM result r
-JOIN Students s ON r.StudentID = s.StudentID;
+CREATE TABLE Student_Report AS
+SELECT sd.STUDENT_NAME,
+       sd.CLASS,
+       sd.PERCENTAGE,
+       DENSE_RANK() OVER (PARTITION BY sd.CLASS ORDER BY sd.SCORE_MARKS DESC) AS RANK_WITHIN_CLASS
+FROM student_dataa sd;
+SELECT *
+FROM Student_Report
+WHERE STUDENT_NAME = :student_name;
