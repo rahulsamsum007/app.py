@@ -1,58 +1,46 @@
--- Step 1: Create the student table
-CREATE TABLE student (
-    student_id INT PRIMARY KEY AUTO_INCREMENT,
-    student_name VARCHAR(50),
-    class VARCHAR(10),
-    total_marks INT,
-    scored_marks INT
+-- Create table for student data
+CREATE TABLE student_data (
+    student_id NUMBER PRIMARY KEY,
+    student_name VARCHAR2(50),
+    class NUMBER,
+    total_marks NUMBER,
+    score_marks NUMBER,
+    percentage NUMBER
 );
 
--- Step 2: Create the calculate_rank function
-DELIMITER //
+-- Insert example values
+INSERT INTO student_data (student_id, student_name, class, total_marks, score_marks, percentage)
+VALUES
+(1, 'John Doe', 10, 500, 450, 90),
+(2, 'Jane Smith', 10, 500, 430, 86),
+(3, 'Alice Johnson', 10, 500, 490, 98),
+(4, 'Bob Williams', 10, 500, 400, 80);
 
-CREATE FUNCTION calculate_rank(scored_marks_percentage FLOAT) RETURNS VARCHAR(20)
-BEGIN
-    DECLARE rank_value VARCHAR(20);
-    
-    IF scored_marks_percentage >= 90 THEN
-        SET rank_value = 'A+';
-    ELSEIF scored_marks_percentage >= 80 THEN
-        SET rank_value = 'A';
-    ELSEIF scored_marks_percentage >= 70 THEN
-        SET rank_value = 'B+';
-    ELSEIF scored_marks_percentage >= 60 THEN
-        SET rank_value = 'B';
-    ELSEIF scored_marks_percentage >= 50 THEN
-        SET rank_value = 'C';
-    ELSE
-        SET rank_value = 'D';
-    END IF;
-    
-    RETURN rank_value;
-END //
+-- Query to get rank based on score marks
+SELECT 
+    student_id,
+    student_name,
+    class,
+    score_marks,
+    percentage,
+    DENSE_RANK() OVER (PARTITION BY class ORDER BY score_marks DESC) AS rank_within_class
+FROM 
+    student_data;
 
-DELIMITER ;
-
--- Step 3: Create the student_name table
-CREATE TABLE student_name (
-    student_id INT PRIMARY KEY,
-    student_name VARCHAR(50),
-    class VARCHAR(10)
-);
-
--- Step 4: Insert values into the student table
-INSERT INTO student (student_name, class, total_marks, scored_marks)
-VALUES ('John Doe', '12A', 500, 450),
-       ('Alice Smith', '11B', 500, 480),
-       ('Bob Johnson', '10C', 500, 400);
-
--- Step 5: Insert values into the student_name table
-INSERT INTO student_name (student_id, student_name, class)
-SELECT student_id, student_name, class
-FROM student;
-
--- Step 6: Query the final exam result
-SELECT sn.student_name, sn.class, calculate_rank(s.scored_marks/s.total_marks * 100) AS rank
-FROM student s
-JOIN student_name sn ON s.student_id = sn.student_id
-ORDER BY sn.class, rank;
+-- Query to get student names ordered by class and rank
+SELECT 
+    sd.student_name,
+    sd.class,
+    sd.rank_within_class
+FROM 
+    (SELECT 
+         student_id,
+         student_name,
+         class,
+         DENSE_RANK() OVER (PARTITION BY class ORDER BY score_marks DESC) AS rank_within_class
+     FROM 
+         student_data) sd
+ORDER BY 
+    sd.class, 
+    sd.rank_within_class, 
+    sd.student_name;
