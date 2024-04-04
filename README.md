@@ -16,31 +16,24 @@ VALUES
 (3, 'Alice Johnson', 10, 500, 490, 98),
 (4, 'Bob Williams', 10, 500, 400, 80);
 
--- Query to get rank based on score marks
-SELECT 
-    student_id,
-    student_name,
-    class,
-    score_marks,
-    percentage,
-    DENSE_RANK() OVER (PARTITION BY class ORDER BY score_marks DESC) AS rank_within_class
-FROM 
-    student_data;
-
--- Query to get student names ordered by class and rank
+-- Query to get student names ordered by class and rank using JOIN
 SELECT 
     sd.student_name,
     sd.class,
-    sd.rank_within_class
+    DENSE_RANK() OVER (PARTITION BY sd.class ORDER BY sd.score_marks DESC) AS rank_within_class
 FROM 
+    student_data sd
+JOIN 
     (SELECT 
-         student_id,
-         student_name,
          class,
-         DENSE_RANK() OVER (PARTITION BY class ORDER BY score_marks DESC) AS rank_within_class
+         MAX(score_marks) AS max_score
      FROM 
-         student_data) sd
+         student_data
+     GROUP BY 
+         class) max_scores
+ON 
+    sd.class = max_scores.class
 ORDER BY 
     sd.class, 
-    sd.rank_within_class, 
+    rank_within_class, 
     sd.student_name;
