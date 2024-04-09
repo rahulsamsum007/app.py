@@ -1,19 +1,25 @@
--- Create table
-CREATE TABLE students (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50),
-    class INT,
-    total_marks INT,
-    max_marks INT,
-    rank INT
-);
-
--- Insert sample data with Indian names and rank
-INSERT INTO students (name, class, total_marks, max_marks, rank) VALUES
-('Aarav', 8, 450, 500, 1),
-('Aarav', 9, 470, 500, 1),
-('Aadya', 8, 480, 500, 2),
-('Advik', 9, 430, 500, 2),
-('Diya', 9, 470, 500, 3),
-('Ishaan', 8, 490, 500, 4),
-('Mira', 9, 450, 500, 5);
+CREATE OR REPLACE PROCEDURE get_student_info (
+    student_name IN VARCHAR2
+) AS
+    v_class students.class%TYPE;
+    v_total_marks students.total_marks%TYPE;
+    v_max_marks students.max_marks%TYPE;
+    v_percentage NUMBER;
+    CURSOR student_cur IS
+        SELECT name, class, total_marks, max_marks
+        FROM students
+        WHERE name = student_name;
+BEGIN
+    OPEN student_cur;
+    FETCH student_cur INTO student_name, v_class, v_total_marks, v_max_marks;
+    CLOSE student_cur;
+    
+    -- Calculate percentage
+    v_percentage := (v_total_marks / v_max_marks) * 100;
+    
+    -- Output result
+    DBMS_OUTPUT.PUT_LINE(student_name || ' scored ' || v_total_marks || ' total marks out of ' || v_max_marks || 
+                         ' and scored ' || v_percentage || '%');
+    DBMS_OUTPUT.PUT_LINE('and scored 1 position in class ' || v_class);
+END;
+/
