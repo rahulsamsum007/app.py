@@ -1,29 +1,53 @@
-DECLARE
-    v_student_name VARCHAR2(50) := 'Aarav';
-    v_class students.class%TYPE;
-    v_total_marks students.total_marks%TYPE;
-    v_max_marks students.max_marks%TYPE;
-    v_rank students.rank%TYPE;
-    v_percentage NUMBER;
+-- Test cases for PRODUCT_TYPE
+-- 1. P_SEGMENT1 = 311 and P_SEGMENT6 in range 15000-15999
+-- Expected: 'PET'
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('311', '15555', 'PRODUCT_TYPE') AS RESULT FROM DUAL;
 
-    CURSOR student_cursor IS
-        SELECT name, class, total_marks, max_marks, rank
-        FROM students
-        WHERE name = v_student_name;
-BEGIN
-    OPEN student_cursor;
-    LOOP
-        FETCH student_cursor INTO v_student_name, v_class, v_total_marks, v_max_marks, v_rank;
-        EXIT WHEN student_cursor%NOTFOUND;
-        
-        -- Calculate percentage
-        v_percentage := (v_total_marks / v_max_marks) * 100;
-        
-        -- Display result
-        DBMS_OUTPUT.PUT_LINE(v_student_name || ' scored ' || v_total_marks || ' total marks out of ' || v_max_marks || 
-                             ' and scored ' || v_rank || ' position in class ' || v_class || 
-                             '. Percentage: ' || v_percentage || '%');
-    END LOOP;
-    CLOSE student_cursor;
-END;
-/
+-- 2. P_SEGMENT1 = 312
+-- Expected: 'PET'
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('312', '12345', 'PRODUCT_TYPE') AS RESULT FROM DUAL;
+
+-- 3. P_SEGMENT1 = 371
+-- Expected: 'BOP'
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('371', '12345', 'PRODUCT_TYPE') AS RESULT FROM DUAL;
+
+-- 4. P_SEGMENT1 = 314
+-- Expected: 'BOP'
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('314', '12345', 'PRODUCT_TYPE') AS RESULT FROM DUAL;
+
+-- 5. P_SEGMENT1 = 376 and P_SEGMENT6 in range 15000-15999
+-- Expected: 'BOP'
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('376', '15555', 'PRODUCT_TYPE') AS RESULT FROM DUAL;
+
+-- 6. P_SEGMENT1 = 376 and P_SEGMENT6 not in range 15000-15999 or 11100-11199
+-- Expected: 'PET'
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('376', '12345', 'PRODUCT_TYPE') AS RESULT FROM DUAL;
+
+-- 7. P_SEGMENT1 = 376 and P_SEGMENT6 in range 11100-11199
+-- Expected: 'PAPER'
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('376', '11111', 'PRODUCT_TYPE') AS RESULT FROM DUAL;
+
+-- 8. P_SEGMENT1 = 313 and P_SEGMENT6 in range 15000-15999
+-- Expected: 'BOP'
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('313', '15555', 'PRODUCT_TYPE') AS RESULT FROM DUAL;
+
+-- 9. P_SEGMENT1 = 313 and P_SEGMENT6 not in range 15000-15999 or 11100-11199
+-- Expected: 'PET'
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('313', '12345', 'PRODUCT_TYPE') AS RESULT FROM DUAL;
+
+-- 10. P_SEGMENT1 = 313 and P_SEGMENT6 in range 11100-11199
+-- Expected: 'PAPER'
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('313', '11111', 'PRODUCT_TYPE') AS RESULT FROM DUAL;
+
+-- Test cases for FILM_TYPE
+-- 1. Existing FILM_TYPE
+-- Expected: Corresponding FILM_TYPE value from the database
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('existing_value', 'existing_value', 'FILM_TYPE') AS RESULT FROM DUAL;
+
+-- 2. Non-existing FILM_TYPE
+-- Expected: 'BARE'
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('non_existing_value', 'non_existing_value', 'FILM_TYPE') AS RESULT FROM DUAL;
+
+-- 3. Handling exceptions
+-- Expected: NULL (due to exception handling)
+SELECT PFBCUSTOM.GET_GL_PRODUCT_DESC('invalid_input', 'invalid_input', 'FILM_TYPE') AS RESULT FROM DUAL;
