@@ -1,6 +1,3 @@
-To modify your PL/SQL code to generate tables with segment-wise details and zone-wise segmentation, I'll create four separate tables for each zone and modify the segment-wise details table accordingly. Here's the modified code:
-
-```sql
 SET DEFINE OFF;
 
 DECLARE
@@ -27,7 +24,7 @@ DECLARE
             FROM BARCODE.LFCF_SALES_MIS_ORDER_DATA
         )
         WHERE ORGANIZATION_ID = P_ORGANIZATION_ID
-        AND TRUNC(SCHEDULE_SHIP_DATE) <= LAST_DAY(TRUNC(P_DATE))
+        AND TRUNC(ORDERED_DATE) <= LAST_DAY(TRUNC(P_DATE))
         GROUP BY ZONE_NAME;
 
     -- Cursor to fetch segment-wise data
@@ -52,7 +49,7 @@ DECLARE
             FROM BARCODE.LFCF_SALES_MIS_ORDER_DATA
         )
         WHERE ORGANIZATION_ID = P_ORGANIZATION_ID
-        AND TRUNC(SCHEDULE_SHIP_DATE) <= LAST_DAY(TRUNC(P_DATE))
+        AND TRUNC(ORDERED_DATE) <= LAST_DAY(TRUNC(P_DATE))
         GROUP BY SEGMENT_NAME;
 
 BEGIN
@@ -108,4 +105,13 @@ BEGIN
     
     -- Close SMTP connection
     UTL_SMTP.WRITE_DATA(VCONNECTION, VCRLF);
-    UTL_SMTP.WRITE_DATA(VCONNECTION, '--
+    UTL_SMTP.WRITE_DATA(VCONNECTION, '--' || CMIMEBOUNDARY || '--' || VCRLF);
+    UTL_SMTP.CLOSE_DATA(VCONNECTION);
+    UTL_SMTP.QUIT(VCONNECTION);
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Exception handling
+        NULL;
+END;
+/
