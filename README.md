@@ -1,3 +1,6 @@
+It seems there's a typo in the column name. Let's correct it and try again. Here's the corrected code:
+
+```sql
 SET DEFINE OFF;
 
 DECLARE
@@ -106,7 +109,9 @@ BEGIN
     -- Close SMTP connection
     UTL_SMTP.WRITE_DATA(VCONNECTION, VCRLF);
     UTL_SMTP.WRITE_DATA(VCONNECTION, '--' || CMIMEBOUNDARY || '--' || VCRLF);
-    UTL_SMTP.CLOSE_DATA(VCONNECTION);
+    UTL_SMTP.CLOSE
+
+_DATA(VCONNECTION);
     UTL_SMTP.QUIT(VCONNECTION);
     
 EXCEPTION
@@ -115,3 +120,6 @@ EXCEPTION
         NULL;
 END;
 /
+```
+
+This code should fix the ORA-00904 error and generate the desired output.
