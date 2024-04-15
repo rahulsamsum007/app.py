@@ -1,125 +1,51 @@
-It seems there's a typo in the column name. Let's correct it and try again. Here's the corrected code:
+Sure, to achieve that, we can modify the existing SQL query to incorporate the requirement of selecting distinct zones from the order, invoice, and sales tables. Then, we can filter the data to only include the "North" segment and calculate the total order booked and total sale for this segment. Here's how we can do it:
 
 ```sql
-SET DEFINE OFF;
-
 DECLARE
     VCONNECTION UTL_SMTP.CONNECTION;
     CMIMEBOUNDARY CONSTANT VARCHAR2(256) := '-----AABCDEFBBCCC0123456789DE';
     VCRLF CHAR(2) := CHR(13) || CHR(10);
-    P_ORGANIZATION_ID NUMBER := 122;
-    P_DATE DATE := SYSDATE - 1;
+    P_ORGANIZATION_ID NUMBER := 122; -- Change as needed
+    P_DATE DATE := SYSDATE - 1; -- Change as needed
+    -- Other declarations as per your code...
 
-    -- Cursor to fetch data zone-wise
-    CURSOR ZONE_DATA IS
-        SELECT ZONE_NAME, 
-               ROUND(SUM(BUDGET_QTY), 2) AS PLAN_QTY,
-               ROUND(SUM(QUANTITY_INVOICED), 2) AS INVOICE_QTY,
-               ROUND(SUM(ORDER_QTY), 2) AS ORDER_QTY
-        FROM (
-            SELECT ZONE_NAME, BUDGET_QTY, 0 AS QUANTITY_INVOICED, 0 AS ORDER_QTY
-            FROM BARCODE.LFCF_ZONE_SALES_MIS_BUDGET_DATA
-            UNION ALL
-            SELECT ZONE, 0 AS BUDGET_QTY, QUANTITY_INVOICED, 0 AS ORDER_QTY
-            FROM BARCODE.LFCF_SALES_MIS_INVOICE_DATA
-            UNION ALL
-            SELECT ZONE, 0 AS BUDGET_QTY, 0 AS QUANTITY_INVOICED, ORDER_QTY
-            FROM BARCODE.LFCF_SALES_MIS_ORDER_DATA
-        )
-        WHERE ORGANIZATION_ID = P_ORGANIZATION_ID
-        AND TRUNC(ORDERED_DATE) <= LAST_DAY(TRUNC(P_DATE))
-        GROUP BY ZONE_NAME;
-
-    -- Cursor to fetch segment-wise data
-    CURSOR SEGMENT_DATA IS
-        SELECT SEGMENT_NAME, 
-               ROUND(SUM(BUDGET_QTY), 2) AS PLAN_QTY,
-               ROUND(SUM(QUANTITY_INVOICED) + SUM(ORDER_QTY), 2) AS TOTAL_ORDER_BOOKED
-        FROM (
-            SELECT SEGMENT_NAME, BUDGET_QTY, 0 AS QUANTITY_INVOICED, 0 AS ORDER_QTY
-            FROM BARCODE.LFCF_SEGMENT_SALES_MIS_BUDGET_DATA
-            UNION ALL
-            SELECT NVL(ITEM_CATEGORY, ITEM_NAME) AS SEGMENT_NAME, 
-                   0 AS BUDGET_QTY, 
-                   QUANTITY_INVOICED, 
-                   0 AS ORDER_QTY
-            FROM BARCODE.LFCF_SALES_MIS_INVOICE_DATA
-            UNION ALL
-            SELECT NVL(PRODUCT_CATEGORY, PRODUCT) AS SEGMENT_NAME, 
-                   0 AS BUDGET_QTY, 
-                   0 AS QUANTITY_INVOICED, 
-                   ORDER_QTY
-            FROM BARCODE.LFCF_SALES_MIS_ORDER_DATA
-        )
-        WHERE ORGANIZATION_ID = P_ORGANIZATION_ID
-        AND TRUNC(ORDERED_DATE) <= LAST_DAY(TRUNC(P_DATE))
-        GROUP BY SEGMENT_NAME;
+    -- Cursor to fetch distinct zones from all relevant tables
+    CURSOR DISTINCT_ZONES IS
+        SELECT DISTINCT ZONE_NAME AS ZONE FROM BARCODE.LFCF_ZONE_SALES_MIS_BUDGET_DATA
+        UNION
+        SELECT DISTINCT ZONE FROM BARCODE.LFCF_SALES_MIS_INVOICE_DATA
+        UNION
+        SELECT DISTINCT ZONE FROM BARCODE.LFCF_SALES_MIS_ORDER_DATA;
 
 BEGIN
-    -- Code to send email with the data
-    
-    -- Open SMTP connection
-    VCONNECTION := UTL_SMTP.OPEN_CONNECTION(SRF_PFB_CUSTOM_ALERTS.SMTP_SERVER, SRF_PFB_CUSTOM_ALERTS.PORT);
-    UTL_SMTP.HELO(VCONNECTION, SRF_PFB_CUSTOM_ALERTS.SMTP_SERVER);
-    UTL_SMTP.MAIL(VCONNECTION, 'LF_Sales_MIS@srf.com');
-    
-    -- Add recipients
-    UTL_SMTP.RCPT(VCONNECTION, 'shivam.kapoor@srf.com');
-    
-    -- Start email data
-    UTL_SMTP.OPEN_DATA(VCONNECTION);
-    
-    -- Add email headers
-    UTL_SMTP.WRITE_DATA(VCONNECTION, 'Subject: LF SALES MIS - Date: '||TO_CHAR(P_DATE, 'Mon-YYYY')||'. ' || VCRLF);
-    UTL_SMTP.WRITE_DATA(VCONNECTION, 'MIME-Version: 1.0' || VCRLF);
-    UTL_SMTP.WRITE_DATA(VCONNECTION, 'Content-Type: multipart/mixed; boundary="' || CMIMEBOUNDARY || '"' || VCRLF);
-    UTL_SMTP.WRITE_DATA(VCONNECTION, VCRLF);
-    UTL_SMTP.WRITE_DATA(VCONNECTION, '--' || CMIMEBOUNDARY || VCRLF);
-    UTL_SMTP.WRITE_DATA(VCONNECTION, 'Content-Type: text/html; charset="iso-8859-1"' || VCRLF || VCRLF);
-    UTL_SMTP.WRITE_DATA(VCONNECTION, VCRLF);
-    
-    -- Add zone-wise tables
-    FOR ZONE_ROW IN ZONE_DATA LOOP
-        -- Add HTML table for each zone
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<table border="1">' || VCRLF);
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<tr><th>Zone</th><th>Plan Quantity</th><th>Invoice Quantity</th><th>Order Quantity</th></tr>' || VCRLF);
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<tr>');
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<td>' || ZONE_ROW.ZONE_NAME || '</td>');
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<td>' || ZONE_ROW.PLAN_QTY || '</td>');
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<td>' || ZONE_ROW.INVOICE_QTY || '</td>');
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<td>' || ZONE_ROW.ORDER_QTY || '</td>');
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '</tr>' || VCRLF);
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '</table>' || VCRLF);
-    END LOOP;
-    
-    -- Add segment-wise table
-    -- Add HTML table for segment-wise details
-    UTL_SMTP.WRITE_DATA(VCONNECTION, '<table border="1">' || VCRLF);
-    UTL_SMTP.WRITE_DATA(VCONNECTION, '<tr><th>Segment Name</th><th>Total Order Booked</th><th>Total Sales</th></tr>' || VCRLF);
-    FOR SEGMENT_ROW IN SEGMENT_DATA LOOP
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<tr>');
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<td>' || SEGMENT_ROW.SEGMENT_NAME || '</td>');
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<td>' || SEGMENT_ROW.TOTAL_ORDER_BOOKED || '</td>');
-        -- Assuming total sales are sum of invoice quantity and order quantity
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<td>' || (SEGMENT_ROW.TOTAL_ORDER_BOOKED + SEGMENT_ROW.INVOICE_QTY) || '</td>');
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '</tr>' || VCRLF);
-    END LOOP;
-    UTL_SMTP.WRITE_DATA(VCONNECTION, '</table>' || VCRLF);
-    
-    -- Close SMTP connection
-    UTL_SMTP.WRITE_DATA(VCONNECTION, VCRLF);
-    UTL_SMTP.WRITE_DATA(VCONNECTION, '--' || CMIMEBOUNDARY || '--' || VCRLF);
-    UTL_SMTP.CLOSE
+    -- Your existing PL/SQL code...
 
-_DATA(VCONNECTION);
-    UTL_SMTP.QUIT(VCONNECTION);
-    
-EXCEPTION
-    WHEN OTHERS THEN
-        -- Exception handling
-        NULL;
+    -- New section to process distinct zones and calculate segment-wise details for the "North" segment
+    FOR ZONE_REC IN DISTINCT_ZONES LOOP
+        -- Check if the zone is in the "North" segment
+        IF ZONE_REC.ZONE LIKE '%North%' THEN
+            -- Your existing logic to calculate segment-wise details can go here,
+            -- filtering the data based on the "North" zone and aggregating the totals.
+            -- For example:
+            FOR SEG_REC IN SEG LOOP
+                -- Check if the segment name is "Total"
+                IF SEG_REC.SEGMENT_NAME = 'Total' THEN
+                    -- Calculate total order booked and total sale for the "North" segment
+                    -- This can be done by aggregating data where the segment name is "Total"
+                    -- and the zone matches the "North" zone.
+                    -- You can then write this data to your email content using UTL_SMTP.WRITE_DATA.
+                    -- For demonstration purposes, I'll just print the values.
+                    DBMS_OUTPUT.PUT_LINE('Segment: ' || SEG_REC.SEGMENT_NAME);
+                    DBMS_OUTPUT.PUT_LINE('Total Order Booked: ' || SEG_REC.TOTAL_ORDER_BOOKED);
+                    DBMS_OUTPUT.PUT_LINE('Total Sale: ' || SEG_REC.SALE);
+                END IF;
+            END LOOP;
+        END IF;
+    END LOOP;
+
+    -- Your existing PL/SQL code continues...
 END;
 /
 ```
 
-This code should fix the ORA-00904 error and generate the desired output.
+Please replace the placeholders such as `-- Your existing PL/SQL code...` with your actual PL/SQL logic. This code assumes you have existing logic to calculate segment-wise details. If not, you'll need to implement that logic as well. Let me know if you need further assistance!
