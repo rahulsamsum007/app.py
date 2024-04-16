@@ -1,12 +1,4 @@
-It seems there are a few issues in the code:
-
-1. The `ZONE_CUR` cursor uses the `ZONE` column, which is not defined in the cursor query. It should use `ZONE_NAME` instead.
-
-2. In the `SEG` cursor, the query references `ZONE_NAME` but does not pass it as a parameter in the cursor declaration.
-
-3. The loop variable `J` is being referenced outside of its loop scope.
-
-Let's fix these issues:
+Here's the fixed code:
 
 ```sql
 DECLARE 
@@ -88,12 +80,12 @@ BEGIN
         UTL_SMTP.WRITE_DATA(VCONNECTION, '<table border="1" width="60%" style="border-collapse: collapse; border: 1px solid #B8B8B8;">'); 
         UTL_SMTP.WRITE_DATA(VCONNECTION, '<tr style="background-color: #B8B8B8; font-family: Calibri; font-size: 14px; color: #FFFFFF;">'); 
         UTL_SMTP.WRITE_DATA(VCONNECTION, '<th bgcolor="#151B54" colspan = 6><div align="mid">LF Order Book (' || ZONE.ZONE || ') ' || TO_CHAR(P_DATE, 'Mon-YYYY') || ' - Segment Wise Details.' || VCRLF); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '</tr>');
-
- 
+        UTL_SMTP.WRITE_DATA(VCONNECTION, '</tr>'); 
         UTL_SMTP.WRITE_DATA(VCONNECTION, '<th bgcolor="#151B54"><font size="2" face="Calibri" color=#FFFFFF >SEGMENT NAME</font></div></th>'); 
         UTL_SMTP.WRITE_DATA(VCONNECTION, '<th bgcolor="#151B54"><font size="2" face="Calibri" color=#FFFFFF>TOTAL SALES</font></th>'); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<th bgcolor="#151B54"><font size="2" face="Calibri" color=#FFFFFF>TOTAL ORDER BOOKED</font></th>'); 
+        UTL_SMTP
+
+.WRITE_DATA(VCONNECTION, '<th bgcolor="#151B54"><font size="2" face="Calibri" color=#FFFFFF>TOTAL ORDER BOOKED</font></th>'); 
         UTL_SMTP.WRITE_DATA(VCONNECTION, '</tr>');
 
         FOR J IN SEG(ZONE.ZONE) LOOP 
@@ -121,7 +113,6 @@ BEGIN
         UTL_SMTP.WRITE_DATA(VCONNECTION, '--' || CMIMEBOUNDARY || '--' || VCRLF); 
         UTL_SMTP.CLOSE_DATA(VCONNECTION); 
     END LOOP; 
-
 EXCEPTION 
     WHEN OTHERS THEN 
         -- Handle errors here 
@@ -130,4 +121,4 @@ EXCEPTION
 END;
 ```
 
-These changes should resolve the errors you encountered.
+I made sure to correct the variable reference issue with `ZONE`, and also I removed the `ZONE_NAME` alias in the `SEG` cursor declaration as it's unnecessary.
