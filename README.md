@@ -1,118 +1,78 @@
-It seems like there are several issues with the provided code. Here's a corrected version:
+To achieve this, you can modify your cursor `SEG` to accept the `ZONE_NAME` parameter and then filter the data based on that parameter. Then, within your loop, you can pass each distinct zone name from the `ZONE_CUR` cursor to the `SEG` cursor. Here's how you can do it:
 
 ```sql
-SET DEFINE OFF; 
-DECLARE 
-    VCONNECTION UTL_SMTP.CONNECTION; 
-    CMIMEBOUNDARY CONSTANT VARCHAR2(256) := '-----AABCDEFBBCCC0123456789DE'; 
-    VCRLF CHAR(2) := CHR(13) || CHR(10); 
-    P_ORGANIZATION_ID NUMBER := 122; --122/ 1256 
-    P_DATE DATE := SYSDATE - 1;
-
-    CURSOR ZONE_CUR IS 
-        SELECT DISTINCT ZONE_NAME AS ZONE 
-        FROM BARCODE.LFCF_ZONE_SALES_MIS_BUDGET_DATA 
-        WHERE ORGANIZATION_ID = P_ORGANIZATION_ID;
-
-    CURSOR SEG(ZONE_NAME VARCHAR2) IS 
-        WITH TAB AS (
-            SELECT SEGMENT_NAME, ROUND(SUM(BUDGET_QTY), 2) PLAN_QTY, 0 INVOICE_QTY, 0 ORDER_QTY 
-            FROM BARCODE.LFCF_SEGMENT_SALES_MIS_BUDGET_DATA 
-            WHERE ORGANIZATION_ID = P_ORGANIZATION_ID 
-            AND TRUNC(BUDGET_DATE) BETWEEN TRUNC(P_DATE, 'MM') AND LAST_DAY(TRUNC(P_DATE)) 
-            GROUP BY SEGMENT_NAME 
-            UNION ALL 
-            SELECT NVL(ITEM_CATEGORY, ITEM_NAME) SEGMENT_NAME, 0 PLAN_QTY, ROUND(SUM(SHIPPED_QTY), 2) INVOICE_QTY, 0 ORDER_QTY 
-            FROM BARCODE.LFCF_SALES_MIS_INVOICE_DATA 
-            WHERE ORGANIZATION_ID = P_ORGANIZATION_ID 
-            AND TRUNC(INVOICE_DATE) BETWEEN TRUNC(P_DATE, 'MM') AND LAST_DAY(TRUNC(P_DATE)) 
-            AND ZONE = ZONE_NAME 
-            GROUP BY NVL(ITEM_CATEGORY, ITEM_NAME) 
-            UNION ALL 
-            SELECT NVL(PRODUCT_CATEGORY, PRODUCT) SEGMENT_NAME, 0 PLAN_QTY, 0 INVOICE_QTY, ROUND(SUM(ORDER_QTY), 2) ORDER_QTY 
-            FROM BARCODE.LFCF_SALES_MIS_ORDER_DATA 
-            WHERE ORGANIZATION_ID = P_ORGANIZATION_ID 
-            AND TRUNC(SCHEDULE_SHIP_DATE) <= LAST_DAY(TRUNC(P_DATE)) 
-            AND ZONE = ZONE_NAME 
-            GROUP BY NVL(PRODUCT_CATEGORY, PRODUCT)
-        ) 
-        SELECT SEQ_NO, SEGMENT_NAME, PLAN_QTY, INVOICE_QTY, ORDER_QTY, ROUND(INVOICE_QTY + ORDER_QTY, 2) TOTAL_ORDER_BOOKED, ROUND(PLAN_QTY - (INVOICE_QTY + ORDER_QTY), 2) ORDER_TO_BE_BOOKED 
-        FROM (
-            SELECT 1 SEQ_NO, SEGMENT_NAME, SUM(PLAN_QTY) PLAN_QTY, SUM(INVOICE_QTY) INVOICE_QTY, SUM(ORDER_QTY) ORDER_QTY 
-            FROM TAB 
-            WHERE ZONE = ZONE_NAME 
-            GROUP BY SEGMENT_NAME 
-            UNION ALL 
-            SELECT 2 SEQ_NO, 'Total' SEGMENT_NAME, SUM(PLAN_QTY) PLAN_QTY, SUM(INVOICE_QTY) INVOICE_QTY, SUM(ORDER_QTY) ORDER_QTY 
-            FROM TAB 
-            WHERE ZONE = ZONE_NAME 
-            GROUP BY SEGMENT_NAME
-        ) 
-        ORDER BY 1, 2;
-
-    CURSOR B1 IS 
-        SELECT REGEXP_SUBSTR((SELECT MAIL_ID FROM XXSRF.SRF_TTB_ALERT_MAILING_LIST WHERE TRIM(APPLICATION) = 'LF_SALES_MIS_ALERT' AND ORGANIZATION_ID = 122), '[^ ]+', 1, LEVEL) AS TO_EMAIL_ID 
-        FROM DUAL 
-        CONNECT BY REGEXP_SUBSTR((SELECT MAIL_ID FROM XXSRF.SRF_TTB_ALERT_MAILING_LIST WHERE TRIM(APPLICATION) = 'LF_SALES_MIS_ALERT' AND ORGANIZATION_ID = 122), '[^ ]+', 1, LEVEL) IS NOT NULL;
-
-    CURSOR B2 IS 
-        SELECT REGEXP_SUBSTR((SELECT CC_ID FROM XXSRF.SRF_TTB_ALERT_MAILING_LIST WHERE TRIM(APPLICATION) = 'LF_SALES_MIS_ALERT' AND ORGANIZATION_ID = 122), '[^ ]+', 1, LEVEL) AS CC 
-        FROM DUAL 
-        CONNECT BY REGEXP_SUBSTR((SELECT CC_ID FROM XXSRF.SRF_TTB_ALERT_MAILING_LIST WHERE TRIM(APPLICATION) = 'LF_SALES_MIS_ALERT' AND ORGANIZATION_ID = 122), '[^ ]+', 1, LEVEL ) IS NOT NULL;
-
-    CURSOR B3 IS 
-        SELECT REGEXP_SUBSTR((SELECT MAIL_ID || ' ' || CC_ID FROM XXSRF.SRF_TTB_ALERT_MAILING_LIST WHERE TRIM(APPLICATION) = 'LF_SALES_MIS_ALERT' AND ORGANIZATION_ID = 122), '[^ ]+', 1, LEVEL) AS RECIPIENT 
-        FROM DUAL 
-        CONNECT BY REGEXP_SUBSTR((SELECT MAIL_ID || ' ' || CC_ID FROM XXSRF.SRF_TTB_ALERT_MAILING_LIST WHERE TRIM(APPLICATION) = 'LF_SALES_MIS_ALERT' AND ORGANIZATION_ID = 122), '[^ ]+', 1, LEVEL) IS NOT NULL;
-
-BEGIN 
-    VCONNECTION := UTL_SMTP.OPEN_CONNECTION(SRF_PFB_CUSTOM_ALERTS.SMTP_SERVER, SRF_PFB_CUSTOM_ALERTS.PORT); 
-    UTL_SMTP.HELO(VCONNECTION, SRF_PFB_CUSTOM_ALERTS.SMTP_SERVER); 
-    UTL_SMTP.MAIL(VCONNECTION, 'LF_Sales_MIS@srf.com');
-
-    FOR ZONE_REC IN ZONE_CUR LOOP 
-        UTL_SMTP.RCPT(VCONNECTION, 'shivam.kapoor@srf.com'); 
-        UTL_SMTP.OPEN_DATA(VCONNECTION);
-
-        UTL_SMTP.WRITE_DATA(VCONNECTION, 'Subject: LF SALES MIS - Date: ' || TO_CHAR(P_DATE, 'Mon-YYYY') || '.' || VCRLF); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, 'MIME-Version
-
-: 1.0' || VCRLF); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, 'Content-Type: multipart/mixed; boundary="' || CMIMEBOUNDARY || '"' || VCRLF); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, VCRLF); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '--' || CMIMEBOUNDARY || VCRLF); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, 'Content-Type: text/html; charset="iso-8859-1"' || VCRLF || VCRLF); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, ''); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, ''); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, 'LF SALES MIS - Date: ' || TO_CHAR(P_DATE, 'Mon-YYYY') || '.' || VCRLF); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '</table>');
-        -- Add more HTML content if needed
-
-        -- Loop through SEG cursor and write data
-        FOR J IN SEG(ZONE_REC.ZONE) LOOP 
-            UTL_SMTP.WRITE_DATA(VCONNECTION, '</table>'); 
-            UTL_SMTP.WRITE_DATA(VCONNECTION, '</html>'); 
-            UTL_SMTP.WRITE_DATA(VCONNECTION, '</body>'); 
-            -- Add more HTML content if needed
-        END LOOP; 
-
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<P><font size="3" face="Calibri">** Auto Generated Mail, Please do not reply.</font></P>' || VCRLF); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<P><font size="3" face="Calibri">Regards,</font></P>'); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '<P><font size="3" face="Calibri">IT Team.</font></P>'); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '</html>'); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '</body>'); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, VCRLF || VCRLF); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, VCRLF); 
-        UTL_SMTP.WRITE_DATA(VCONNECTION, '--' || CMIMEBOUNDARY || '--' || VCRLF); 
-        UTL_SMTP.CLOSE_DATA(VCONNECTION); 
-    END LOOP; 
-EXCEPTION 
-    WHEN OTHERS THEN 
-        -- Handle errors here 
-        UTL_SMTP.CLOSE_DATA(VCONNECTION); 
-        UTL_SMTP.QUIT(VCONNECTION); 
-END;
-/
+CURSOR SEG(ZONE_NAME VARCHAR2) IS 
+ WITH
+    TAB
+    AS
+        (  
+            SELECT SEGMENT_NAME,
+                  ROUND(SUM(BUDGET_QTY), 2) AS PLAN_QTY,
+                  0 AS INVOICE_QTY,
+                  0 AS ORDER_QTY
+             FROM BARCODE.LFCF_SEGMENT_SALES_MIS_BUDGET_DATA
+            WHERE ORGANIZATION_ID = P_ORGANIZATION_ID
+              AND TRUNC(BUDGET_DATE) BETWEEN TRUNC(P_DATE, 'MM') AND LAST_DAY(TRUNC(P_DATE))
+              AND ZONE_NAME = SEG.ZONE_NAME -- Filter by zone name
+         GROUP BY SEGMENT_NAME                      
+         UNION ALL                            
+           SELECT NVL(ITEM_CATEGORY, ITEM_NAME) AS SEGMENT_NAME,
+                  0 AS PLAN_QTY,
+                  ROUND(SUM(SHIPPED_QTY), 2) AS INVOICE_QTY,
+                  0 AS ORDER_QTY
+             FROM BARCODE.LFCF_SALES_MIS_INVOICE_DATA
+            WHERE ORGANIZATION_ID = P_ORGANIZATION_ID
+              AND TRUNC(INVOICE_DATE) BETWEEN TRUNC(P_DATE, 'MM') AND LAST_DAY(TRUNC(P_DATE))
+              AND ZONE_NAME = SEG.ZONE_NAME -- Filter by zone name
+         GROUP BY NVL(ITEM_CATEGORY, ITEM_NAME)
+         UNION ALL
+           SELECT NVL(PRODUCT_CATEGORY, PRODUCT) AS SEGMENT_NAME,
+                  0 AS PLAN_QTY,
+                  0 AS INVOICE_QTY,
+                  ROUND(SUM(ORDER_QTY), 2) AS ORDER_QTY
+             FROM BARCODE.LFCF_SALES_MIS_ORDER_DATA
+            WHERE ORGANIZATION_ID = P_ORGANIZATION_ID
+              AND TRUNC(SCHEDULE_SHIP_DATE) <= LAST_DAY(TRUNC(P_DATE))
+              AND ZONE_NAME = SEG.ZONE_NAME -- Filter by zone name
+         GROUP BY NVL(PRODUCT_CATEGORY, PRODUCT))
+  SELECT SEQ_NO,
+         SEGMENT_NAME,
+         PLAN_QTY,
+         INVOICE_QTY,
+         ORDER_QTY,
+         ROUND(INVOICE_QTY + ORDER_QTY, 2) AS TOTAL_ORDER_BOOKED,
+         ROUND(PLAN_QTY - (INVOICE_QTY + ORDER_QTY), 2) AS ORDER_TO_BE_BOOKED
+    FROM (  
+          SELECT 1 AS SEQ_NO,
+                 SEGMENT_NAME,
+                 SUM(PLAN_QTY) AS PLAN_QTY,
+                 SUM(INVOICE_QTY) AS INVOICE_QTY,
+                 SUM(ORDER_QTY) AS ORDER_QTY
+            FROM TAB
+        GROUP BY SEGMENT_NAME
+        UNION ALL
+        SELECT 2 AS SEQ_NO,
+               'Total' AS SEGMENT_NAME,
+               SUM(PLAN_QTY) AS PLAN_QTY,
+               SUM(INVOICE_QTY) AS INVOICE_QTY,
+               SUM(ORDER_QTY) AS ORDER_QTY
+          FROM TAB)
+ORDER BY 1, 2;
 ```
 
-In this corrected version, I've made sure to properly loop through the `ZONE_CUR` cursor using `ZONE_REC` as the loop variable. Inside this loop, the `SEG` cursor is iterated using `ZONE_REC.ZONE` as the parameter. Additionally, I've included placeholders for HTML content that you might want to add within the loops.
+Then, within your loop, you can iterate over the distinct zone names and pass each zone name to the `SEG` cursor:
+
+```sql
+FOR Z IN ZONE_CUR LOOP
+    -- Print Zone Name
+    UTL_SMTP.WRITE_DATA(VCONNECTION, '<h2>' || Z.ZONE || '</h2>');
+
+    -- Execute SEG cursor for the current zone
+    FOR J IN SEG(Z.ZONE) LOOP
+        -- Print segment data
+        -- Your existing code to print segment data goes here
+    END LOOP;
+END LOOP;
+```
+
+This way, the `SEG` cursor will only retrieve data for the specified zone name, and you can loop through each distinct zone name from the `ZONE_CUR` cursor and print the corresponding segment data.
