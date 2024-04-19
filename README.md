@@ -1,55 +1,47 @@
-The "Type mismatch" error usually occurs when there is an attempt to assign a value of one data type to a variable of another data type. Let's try to fix it by explicitly converting the cell values to the correct data types. 
+Here's a VBA code snippet that checks the order quantity in the "detail" and "sheet1" sheets and generates a report:
 
 ```vba
-Sub ValidateOrderQuantities()
-    Dim wb As Workbook
+Sub ValidateOrderQty()
     Dim wsDetail As Worksheet
     Dim wsSheet1 As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
     Dim detailQty As Double
     Dim sheet1Qty As Double
-    Dim detailItem As String
-    Dim sheet1Item As String
-    Dim reportRow As Long
     
-    ' Set workbook
-    Set wb = ThisWorkbook
+    ' Set references to the detail and sheet1 sheets
+    Set wsDetail = ThisWorkbook.Sheets("detail")
+    Set wsSheet1 = ThisWorkbook.Sheets("sheet1")
     
-    ' Set worksheets
-    Set wsDetail = wb.Sheets("Detail") ' Adjust sheet name if needed
-    Set wsSheet1 = wb.Sheets("Sheet1") ' Adjust sheet name if needed
+    ' Find the last row in both sheets
+    lastRow = wsDetail.Cells(wsDetail.Rows.Count, "A").End(xlUp).Row
     
-    ' Initialize report
-    reportRow = 1
-    wsSheet1.Cells(reportRow, 1).Value = "Ordered Item"
-    wsSheet1.Cells(reportRow, 2).Value = "Detail Order Qty"
-    wsSheet1.Cells(reportRow, 3).Value = "Sheet1 Order Qty"
-    reportRow = reportRow + 1
-    
-    ' Loop through each row in detail and compare quantities with Sheet1
-    For Each row In wsDetail.UsedRange.Rows
-        detailItem = CStr(wsDetail.Cells(row.Row, 2).Value) ' Assuming item is in column B
-        detailQty = CDbl(wsDetail.Cells(row.Row, 6).Value) ' Assuming qty is in column F
+    ' Loop through each row in the detail sheet
+    For i = 2 To lastRow ' Assuming row 1 is header row
+        ' Get the order quantity from the detail sheet
+        detailQty = wsDetail.Cells(i, "B").Value
         
-        ' Find matching item in Sheet1
-        For Each sRow In wsSheet1.UsedRange.Rows
-            sheet1Item = CStr(wsSheet1.Cells(sRow.Row, 15).Value) ' Assuming item is in column O
-            If detailItem = sheet1Item Then
-                sheet1Qty = CDbl(wsSheet1.Cells(sRow.Row, 18).Value) ' Assuming qty is in column R
-                ' Compare quantities
-                If detailQty <> sheet1Qty Then
-                    ' Report mismatch
-                    wsSheet1.Cells(reportRow, 1).Value = detailItem
-                    wsSheet1.Cells(reportRow, 2).Value = detailQty
-                    wsSheet1.Cells(reportRow, 3).Value = sheet1Qty
-                    reportRow = reportRow + 1
-                End If
-                Exit For ' Exit loop once match is found
-            End If
-        Next sRow
-    Next row
+        ' Get the corresponding order quantity from sheet1
+        sheet1Qty = Application.VLookup(wsDetail.Cells(i, "A").Value, wsSheet1.Range("A:B"), 2, False)
+        
+        ' Compare the order quantities
+        If detailQty <> sheet1Qty Then
+            ' Generate report
+            MsgBox "Order quantity for item " & wsDetail.Cells(i, "A").Value & " does not match between detail and sheet1."
+            ' You can customize the report output as per your requirement
+        End If
+    Next i
     
-    MsgBox "Validation complete. Report generated in Sheet1."
+    ' Cleanup
+    Set wsDetail = Nothing
+    Set wsSheet1 = Nothing
 End Sub
 ```
 
-This modification ensures that the values retrieved from the cells are explicitly converted to strings (`CStr`) and doubles (`CDbl`) to avoid any type mismatch errors. Try running the macro again after making these changes.
+This code assumes that:
+- Both sheets have the order items listed in column A and the corresponding order quantities listed in column B.
+- There are headers in row 1.
+- The order items in the "detail" sheet match exactly with those in the "sheet1" sheet.
+- The order quantity in the "detail" sheet is to be validated against the order quantity in the "sheet1" sheet.
+
+You can customize the report output within the `If` statement as per your specific requirements. This code compares order quantities for each item and alerts if there's a mismatch.
