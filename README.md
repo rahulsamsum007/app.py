@@ -1,62 +1,38 @@
-Sub CompareOrderQuantities()
-    Dim wsDetail As Worksheet
-    Dim wsSheet1 As Worksheet
-    Dim lastRowDetail As Long
-    Dim lastRowSheet1 As Long
-    Dim i As Long
-    Dim reportWS As Worksheet
-    Dim nextRow As Long
+Sub ValidateOrderQty()
+    Dim detailFile As Workbook
+    Dim sheet1File As Workbook
+    Dim detailQty As Double
+    Dim sheet1Qty As Double
+    Dim report As Worksheet
+    Dim rowNum As Integer
     
-    ' Set references to the worksheets
-    Set wsDetail = ThisWorkbook.Sheets("detail")
-    Set wsSheet1 = ThisWorkbook.Sheets("sheet1")
+    ' Open Detail file
+    Set detailFile = Workbooks.Open("C:\Path\to\Detail.xlsx")
+    ' Open Sheet1 file
+    Set sheet1File = ThisWorkbook ' Change this if Sheet1 is in a different workbook
     
-    ' Find the last row with data in each sheet
-    lastRowDetail = wsDetail.Cells(wsDetail.Rows.Count, "B").End(xlUp).Row
-    lastRowSheet1 = wsSheet1.Cells(wsSheet1.Rows.Count, "O").End(xlUp).Row
+    ' Set report worksheet
+    Set report = ThisWorkbook.Sheets.Add
+    report.Name = "Validation Report"
+    rowNum = 1
     
-    ' Create a new worksheet to output the report
-    On Error Resume Next
-    Set reportWS = ThisWorkbook.Sheets("MismatchReport")
-    On Error GoTo 0
-    
-    If reportWS Is Nothing Then
-        Set reportWS = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
-        reportWS.Name = "MismatchReport"
-    Else
-        reportWS.Cells.Clear ' Clear existing content
-    End If
-    
-    ' Set headers for the report
-    reportWS.Cells(1, 1).Value = "Ordered Item"
-    reportWS.Cells(1, 2).Value = "Detail Order Qty"
-    reportWS.Cells(1, 3).Value = "Sheet1 Order Qty"
-    
-    ' Set the initial row for output
-    nextRow = 2
-    
-    ' Loop through each item and compare order quantities
-    For i = 3 To lastRowDetail ' Assuming data starts from row 3 in "detail" sheet
-        If wsDetail.Cells(i, "B").Value <> "" Then ' Check if item is not empty
-            Dim orderedItem As String
-            Dim detailQty As Variant
-            Dim sheet1Qty As Variant
-            
-            ' Get ordered item and order quantities
-            orderedItem = wsDetail.Cells(i, "B").Value
-            detailQty = wsDetail.Cells(i, "F").Value
-            sheet1Qty = wsSheet1.Cells(1, "R").Value
-            
-            ' Check if order quantities don't match
-            If detailQty <> sheet1Qty Then 
-                ' Output to report
-                reportWS.Cells(nextRow, 1).Value = orderedItem
-                reportWS.Cells(nextRow, 2).Value = detailQty
-                reportWS.Cells(nextRow, 3).Value = sheet1Qty
-                nextRow = nextRow + 1
-            End If
+    ' Loop through each row to compare order_qty
+    For rowNum = 3 To detailFile.Sheets("Sheet1").Cells(Rows.Count, "B").End(xlUp).Row
+        detailQty = detailFile.Sheets("Sheet1").Cells(rowNum, "B").Value
+        sheet1Qty = sheet1File.Sheets("Sheet1").Cells(1, rowNum).Value
+        
+        ' Compare order_qty and report any discrepancies
+        If detailQty <> sheet1Qty Then
+            report.Cells(rowNum, 1).Value = "Discrepancy found in row " & rowNum
+            report.Cells(rowNum, 2).Value = "Detail Qty: " & detailQty
+            report.Cells(rowNum, 3).Value = "Sheet1 Qty: " & sheet1Qty
         End If
-    Next i
+    Next rowNum
     
-    MsgBox "Mismatch report has been generated on the worksheet 'MismatchReport'."
+    ' Close files
+    detailFile.Close
+    ' If Sheet1 is in a different workbook, you may need to close it too
+    
+    ' Notify user
+    MsgBox "Validation complete. Check 'Validation Report' for details."
 End Sub
