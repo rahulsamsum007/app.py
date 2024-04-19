@@ -1,38 +1,49 @@
-Sub ValidateOrderQty()
-    Dim detailFile As Workbook
-    Dim sheet1File As Workbook
+Sub ValidateOrderQuantities()
+    Dim wb As Workbook
+    Dim wsDetail As Worksheet
+    Dim wsSheet1 As Worksheet
     Dim detailQty As Double
     Dim sheet1Qty As Double
-    Dim report As Worksheet
-    Dim rowNum As Integer
+    Dim detailItem As String
+    Dim sheet1Item As String
+    Dim reportRow As Long
     
-    ' Open Detail file
-    Set detailFile = Workbooks.Open("C:\Path\to\Detail.xlsx")
-    ' Open Sheet1 file
-    Set sheet1File = ThisWorkbook ' Change this if Sheet1 is in a different workbook
+    ' Set workbook
+    Set wb = ThisWorkbook
     
-    ' Set report worksheet
-    Set report = ThisWorkbook.Sheets.Add
-    report.Name = "Validation Report"
-    rowNum = 1
+    ' Set worksheets
+    Set wsDetail = wb.Sheets("Detail") ' Adjust sheet name if needed
+    Set wsSheet1 = wb.Sheets("Sheet1") ' Adjust sheet name if needed
     
-    ' Loop through each row to compare order_qty
-    For rowNum = 3 To detailFile.Sheets("Sheet1").Cells(Rows.Count, "B").End(xlUp).Row
-        detailQty = detailFile.Sheets("Sheet1").Cells(rowNum, "B").Value
-        sheet1Qty = sheet1File.Sheets("Sheet1").Cells(1, rowNum).Value
+    ' Initialize report
+    reportRow = 1
+    wsSheet1.Cells(reportRow, 1).Value = "Ordered Item"
+    wsSheet1.Cells(reportRow, 2).Value = "Detail Order Qty"
+    wsSheet1.Cells(reportRow, 3).Value = "Sheet1 Order Qty"
+    reportRow = reportRow + 1
+    
+    ' Loop through each row in detail and compare quantities with Sheet1
+    For Each row In wsDetail.UsedRange.Rows
+        detailItem = wsDetail.Cells(row.Row, 2).Value ' Assuming item is in column B
+        detailQty = wsDetail.Cells(row.Row, 6).Value ' Assuming qty is in column F
         
-        ' Compare order_qty and report any discrepancies
-        If detailQty <> sheet1Qty Then
-            report.Cells(rowNum, 1).Value = "Discrepancy found in row " & rowNum
-            report.Cells(rowNum, 2).Value = "Detail Qty: " & detailQty
-            report.Cells(rowNum, 3).Value = "Sheet1 Qty: " & sheet1Qty
-        End If
-    Next rowNum
+        ' Find matching item in Sheet1
+        For Each sRow In wsSheet1.UsedRange.Rows
+            sheet1Item = wsSheet1.Cells(sRow.Row, 15).Value ' Assuming item is in column O
+            If detailItem = sheet1Item Then
+                sheet1Qty = wsSheet1.Cells(sRow.Row, 18).Value ' Assuming qty is in column R
+                ' Compare quantities
+                If detailQty <> sheet1Qty Then
+                    ' Report mismatch
+                    wsSheet1.Cells(reportRow, 1).Value = detailItem
+                    wsSheet1.Cells(reportRow, 2).Value = detailQty
+                    wsSheet1.Cells(reportRow, 3).Value = sheet1Qty
+                    reportRow = reportRow + 1
+                End If
+                Exit For ' Exit loop once match is found
+            End If
+        Next sRow
+    Next row
     
-    ' Close files
-    detailFile.Close
-    ' If Sheet1 is in a different workbook, you may need to close it too
-    
-    ' Notify user
-    MsgBox "Validation complete. Check 'Validation Report' for details."
+    MsgBox "Validation complete. Report generated in Sheet1."
 End Sub
