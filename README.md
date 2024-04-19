@@ -4,7 +4,6 @@ Sub CompareOrderQuantities()
     Dim lastRowDetail As Long
     Dim lastRowSheet1 As Long
     Dim i As Long
-    Dim mismatchReport As String
     Dim reportWS As Worksheet
     Dim nextRow As Long
     
@@ -15,9 +14,6 @@ Sub CompareOrderQuantities()
     ' Find the last row with data in each sheet
     lastRowDetail = wsDetail.Cells(wsDetail.Rows.Count, "B").End(xlUp).Row
     lastRowSheet1 = wsSheet1.Cells(wsSheet1.Rows.Count, "O").End(xlUp).Row
-    
-    ' Initialize mismatch report string
-    mismatchReport = "Items with mismatched order quantities:" & vbCrLf
     
     ' Create a new worksheet to output the report
     On Error Resume Next
@@ -31,16 +27,32 @@ Sub CompareOrderQuantities()
         reportWS.Cells.Clear ' Clear existing content
     End If
     
+    ' Set headers for the report
+    reportWS.Cells(1, 1).Value = "Ordered Item"
+    reportWS.Cells(1, 2).Value = "Detail Order Qty"
+    reportWS.Cells(1, 3).Value = "Sheet1 Order Qty"
+    
     ' Set the initial row for output
-    nextRow = 1
+    nextRow = 2
     
     ' Loop through each item and compare order quantities
     For i = 3 To lastRowDetail ' Assuming data starts from row 3 in "detail" sheet
         If wsDetail.Cells(i, "B").Value <> "" Then ' Check if item is not empty
-            If wsDetail.Cells(i, "F").Value <> wsSheet1.Cells(1, "R").Value Then ' Check if order quantities don't match
-                reportWS.Cells(nextRow, 1).Value = "Item: " & wsDetail.Cells(i, "B").Value
-                reportWS.Cells(nextRow, 2).Value = "Detail qty: " & wsDetail.Cells(i, "F").Value
-                reportWS.Cells(nextRow, 3).Value = "Sheet1 qty: " & wsSheet1.Cells(1, "R").Value
+            Dim orderedItem As String
+            Dim detailQty As Variant
+            Dim sheet1Qty As Variant
+            
+            ' Get ordered item and order quantities
+            orderedItem = wsDetail.Cells(i, "B").Value
+            detailQty = wsDetail.Cells(i, "F").Value
+            sheet1Qty = wsSheet1.Cells(1, "R").Value
+            
+            ' Check if order quantities don't match
+            If detailQty <> sheet1Qty Then 
+                ' Output to report
+                reportWS.Cells(nextRow, 1).Value = orderedItem
+                reportWS.Cells(nextRow, 2).Value = detailQty
+                reportWS.Cells(nextRow, 3).Value = sheet1Qty
                 nextRow = nextRow + 1
             End If
         End If
