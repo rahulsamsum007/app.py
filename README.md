@@ -1,47 +1,13 @@
-Here's a VBA code snippet that checks the order quantity in the "detail" and "sheet1" sheets and generates a report:
-
-```vba
-Sub ValidateOrderQty()
-    Dim wsDetail As Worksheet
-    Dim wsSheet1 As Worksheet
-    Dim lastRow As Long
-    Dim i As Long
-    Dim detailQty As Double
-    Dim sheet1Qty As Double
-    
-    ' Set references to the detail and sheet1 sheets
-    Set wsDetail = ThisWorkbook.Sheets("detail")
-    Set wsSheet1 = ThisWorkbook.Sheets("sheet1")
-    
-    ' Find the last row in both sheets
-    lastRow = wsDetail.Cells(wsDetail.Rows.Count, "A").End(xlUp).Row
-    
-    ' Loop through each row in the detail sheet
-    For i = 2 To lastRow ' Assuming row 1 is header row
-        ' Get the order quantity from the detail sheet
-        detailQty = wsDetail.Cells(i, "B").Value
-        
-        ' Get the corresponding order quantity from sheet1
-        sheet1Qty = Application.VLookup(wsDetail.Cells(i, "A").Value, wsSheet1.Range("A:B"), 2, False)
-        
-        ' Compare the order quantities
-        If detailQty <> sheet1Qty Then
-            ' Generate report
-            MsgBox "Order quantity for item " & wsDetail.Cells(i, "A").Value & " does not match between detail and sheet1."
-            ' You can customize the report output as per your requirement
-        End If
-    Next i
-    
-    ' Cleanup
-    Set wsDetail = Nothing
-    Set wsSheet1 = Nothing
-End Sub
-```
-
-This code assumes that:
-- Both sheets have the order items listed in column A and the corresponding order quantities listed in column B.
-- There are headers in row 1.
-- The order items in the "detail" sheet match exactly with those in the "sheet1" sheet.
-- The order quantity in the "detail" sheet is to be validated against the order quantity in the "sheet1" sheet.
-
-You can customize the report output within the `If` statement as per your specific requirements. This code compares order quantities for each item and alerts if there's a mismatch.
+BID	ORGANIZATION_ID	ORGANIZATION_CODE	BUDGET_DATE	ZONE_NAME	BUDGET_QTY	INSERTION_DATE	CUSTOMER_NAME
+1,	1256,	F01	31-Mar-24,	CF NORTH,412000	,14-03-2024 10:35,	
+2,	1256,	F01,	31-Mar-24,	CF EAST	,75000,	14-03-2024 10:35	,
+3,	1256,	F01,	31-Mar-24,	CF WEST	,181000,	14-03-2024 10:35	,
+4,	1256,	F01,	31-Mar-24,	TN AP	,188000	,14-03-2024 10:35	,
+5,	1256,	F01,	31-Mar-24,	KL KN	,90000,	14-03-2024 10:35	,
+6,	1256,	F01,	31-Mar-24,	INSTITUTION,8000,	14-03-2024 10:35,	
+7,	122,	T52,	31-Mar-24,	NORTH,	3194800	,14-03-2024 10:35	,
+8,	122,	T52,	31-Mar-24,	EAST	,1268700,	14-03-2024 10:35	,
+9,	122,	T52,	31-Mar-24,	WEST	,44000	,14-03-2024 10:35	,
+10,	122,	T52,	31-Mar-24,	SOUTH	,1044800,	14-03-2024 10:35	,
+11,	1256,	F01,	31-Mar-24,	EXPORTS	,60000	,14-03-2024 10:35	,
+12,	1256,	F01,	30-Apr-24,	CF NORTH,525000,	04-04-2024 11:26	,
