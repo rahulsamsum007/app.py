@@ -1,66 +1,17 @@
-Here's the modified script with the composite unique constraint added:
+To see both the data from B1 that doesn't match with A1 and the data that matches, you can use two separate columns. In column C, you can list the unmatched data, and in column D, you can list the matched data. Here's how you can do it:
 
-```sql
-DROP TABLE BARCODE.LFCF_ZONE_SALES_MIS_BUDGET_DATA CASCADE CONSTRAINTS;
+In cell C2, use this formula to list unmatched data:
 
-CREATE TABLE BARCODE.LFCF_ZONE_SALES_MIS_BUDGET_DATA (
-    BID NUMBER,
-    ORGANIZATION_ID NUMBER,
-    ORGANIZATION_CODE VARCHAR2(100 BYTE),
-    BUDGET_DATE DATE,
-    ZONE_NAME VARCHAR2(100 BYTE),
-    BUDGET_QTY NUMBER,
-    INSERTION_DATE DATE DEFAULT SYSDATE,
-    CUSTOMER_NAME VARCHAR2(100 BYTE)
-)
-TABLESPACE USERS 
-PCTUSED 0 
-PCTFREE 10 
-INITRANS 1 
-MAXTRANS 255 
-STORAGE (
-    INITIAL 64K 
-    NEXT 1M 
-    MINEXTENTS 1 
-    MAXEXTENTS UNLIMITED 
-    PCTINCREASE 0 
-    BUFFER_POOL DEFAULT
-) 
-LOGGING 
-NOCOMPRESS 
-NOCACHE;
-
-ALTER TABLE BARCODE.LFCF_ZONE_SALES_MIS_BUDGET_DATA 
-ADD CONSTRAINT unique_constraint_name UNIQUE (ORGANIZATION_ID, BUDGET_DATE, ZONE_NAME, CUSTOMER_NAME);
-
-ALTER TABLE BARCODE.LFCF_ZONE_SALES_MIS_BUDGET_DATA 
-ADD (
-    PRIMARY KEY (BID) USING INDEX 
-    TABLESPACE USERS 
-    PCTFREE 10 
-    INITRANS 2 
-    MAXTRANS 255 
-    STORAGE (
-        INITIAL 64K 
-        NEXT 1M 
-        MINEXTENTS 1 
-        MAXEXTENTS UNLIMITED 
-        PCTINCREASE 0 
-        BUFFER_POOL DEFAULT
-    ) 
-    ENABLE 
-    VALIDATE
-);
-
-CREATE OR REPLACE TRIGGER BARCODE.CLF_BUDGET_SALES_DATA_TRG 
-BEFORE INSERT ON BARCODE.LFCF_ZONE_SALES_MIS_BUDGET_DATA 
-FOR EACH ROW 
-BEGIN 
-    SELECT CLF_BUDGET_SALES_DATA_seq.NEXTVAL INTO :NEW.BID FROM DUAL; 
-END;
-/
-
-GRANT ALTER, DELETE, INDEX, INSERT, REFERENCES, SELECT, UPDATE, ON COMMIT REFRESH, QUERY REWRITE, READ, DEBUG, FLASHBACK ON BARCODE.LFCF_ZONE_SALES_MIS_BUDGET_DATA TO XXSRF;
+```excel
+=IF(ISERROR(VLOOKUP(B2, A:A, 1, FALSE)), B2, "")
 ```
 
-Make sure to replace `unique_constraint_name` with a suitable name for your constraint.
+In cell D2, use this formula to list matched data:
+
+```excel
+=IF(ISNUMBER(VLOOKUP(B2, A:A, 1, FALSE)), B2, "")
+```
+
+Then, drag these formulas down for the entire range of your data in column B.
+
+This setup will populate column C with unmatched data from B1 and column D with matched data. Any cell in columns C and D that doesn't have data will be blank.
