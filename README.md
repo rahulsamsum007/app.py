@@ -1,40 +1,28 @@
-CREATE OR REPLACE FUNCTION PFBCUSTOM.f_getarrow (product_i VARCHAR2)
-   RETURN VARCHAR2
-IS
-   arrow    VARCHAR2 (1);
-   prdstr   VARCHAR2 (1);
-   prdstr1  VARCHAR2 (1);
+USE [SRFPalletDB]
+GO
+/****** Object:  UserDefinedFunction [dbo].[f_getarrow]    Script Date: 5/6/2024 12:22:08 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER  FUNCTION [dbo].[f_getarrow] (@Product varchar(100))
+   RETURNs VARCHAR(100)
+AS
 BEGIN
-   SELECT   SUBSTR (product_i, INSTR (product_i, '-') + 2, 1),SUBSTR (product_i, INSTR (product_i, '-') + 1, 1)
-     INTO   prdstr,prdstr1
-     FROM   DUAL;
+  Declare @arrow  varchar(1),@prdstr varchar(1),@prdstr1 varchar(1)
+     SELECT  @prdstr= substring (@Product, CharIndex ('-', @Product) + 2, 1),@prdstr1=substring (@Product, CharIndex ('-',@Product) + 1, 1)
 
-   SELECT   CASE
-               WHEN (prdstr = 'I' OR prdstr1 = 'I') THEN 'U'
-               WHEN (prdstr = 'O' OR prdstr1 = 'O') THEN 'D'
-               ELSE '-'
-            END
-     INTO   arrow
-     FROM   DUAL;
 
-   RETURN arrow;
-EXCEPTION
-   WHEN OTHERS
-   THEN
-      arrow := '-';
-      RETURN arrow;
-END;
-/
-SR NO	ITEM_CODE		Arrow Direction	Discription to be print 
-65	1HSP0200-IHP/OR	IHP	In Side	HEAT SEAL
-107	1HSP0210-IHP/OR	IHP	In Side	HEAT SEAL
-![image]
-TreatmentName	ArrowDirection
-IT	I
-IQ	I
-IV	I
-IX	I
-![image](https://github.com/rahulsamsum007/app.py/assets/135415621/f2bbb691-7b1c-4c64-a7b6-ce24c1fb62f7)
 
-(https://github.com/rahulsamsum007/app.py/assets/135415621/a2ecfc8d-6540-4ad1-911d-dc75126bbbb2)
+   select @arrow=(Case  when @prdstr='I' or @prdstr1='I' then 'U'
+                        when @prdstr='O' or @prdstr1='O' then 'D'
+                                         else '-' end)
 
+   RETURN @arrow
+   End
+
+i need  wroking poeprly supoose take an exaple if i m giving this SELECT f_getarrow('PX140-IT/OR') FROM DUAL;
+
+i should be getting' IT' and then matching 'IT' with my table ArrowTextMaster i should get "I " as in my front or treatment name "IT" "I "
+is presetnin arrowdirection
