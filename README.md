@@ -1,28 +1,36 @@
-USE [SRFPalletDB]
-GO
-/****** Object:  UserDefinedFunction [dbo].[f_getarrow]    Script Date: 5/6/2024 12:22:08 PM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+It looks like you're trying to create a function in Oracle that returns an arrow direction based on a product string and then match that with a table called ArrowTextMaster. Here's the corrected function and query:
 
-ALTER  FUNCTION [dbo].[f_getarrow] (@Product varchar(100))
-   RETURNs VARCHAR(100)
-AS
+```sql
+CREATE OR REPLACE FUNCTION f_getarrow (p_product VARCHAR2) RETURN VARCHAR2 IS
+  v_arrow VARCHAR2(1);
+  v_prdstr VARCHAR2(1);
+  v_prdstr1 VARCHAR2(1);
 BEGIN
-  Declare @arrow  varchar(1),@prdstr varchar(1),@prdstr1 varchar(1)
-     SELECT  @prdstr= substring (@Product, CharIndex ('-', @Product) + 2, 1),@prdstr1=substring (@Product, CharIndex ('-',@Product) + 1, 1)
+  v_prdstr := SUBSTR(p_product, INSTR(p_product, '-') + 2, 1);
+  v_prdstr1 := SUBSTR(p_product, INSTR(p_product, '-') + 1, 1);
 
+  SELECT
+    CASE
+      WHEN v_prdstr = 'I' OR v_prdstr1 = 'I' THEN 'U'
+      WHEN v_prdstr = 'O' OR v_prdstr1 = 'O' THEN 'D'
+      ELSE '-'
+    END
+  INTO v_arrow
+  FROM DUAL;
 
+  RETURN v_arrow;
+END;
+/
 
-   select @arrow=(Case  when @prdstr='I' or @prdstr1='I' then 'U'
-                        when @prdstr='O' or @prdstr1='O' then 'D'
-                                         else '-' end)
+SELECT f_getarrow('PX140-IT/OR') FROM DUAL;
+```
 
-   RETURN @arrow
-   End
+Now, assuming you have a table called ArrowTextMaster with columns ArrowDirection and FrontOrTreatment, you can use a query like this to match the arrow direction with the product and get the corresponding treatment:
 
-i need  wroking poeprly supoose take an exaple if i m giving this SELECT f_getarrow('PX140-IT/OR') FROM DUAL;
+```sql
+SELECT atm.FrontOrTreatment
+FROM ArrowTextMaster atm
+WHERE atm.ArrowDirection = f_getarrow('PX140-IT/OR');
+```
 
-i should be getting' IT' and then matching 'IT' with my table ArrowTextMaster i should get "I " as in my front or treatment name "IT" "I "
-is presetnin arrowdirection
+This query will return the FrontOrTreatment value corresponding to the arrow direction of the given product string.
