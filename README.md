@@ -1,6 +1,4 @@
-Got it, you want to extract the substring between '-' and '/' from the input string, then match it with the `treatmentname` column in the `ArrowTextMaster` table and return the corresponding `arrowdirection` value.
-
-Here's how you can achieve this:
+Understood, let's modify the function to return 'U' if the treatment name is not found in the `ArrowTextMaster` table and ensure the arrow direction contains only 'I' and 'O'. Here's the updated function:
 
 ```sql
 CREATE OR REPLACE FUNCTION f_getarrow(p_product VARCHAR2) RETURN VARCHAR2 AS
@@ -14,21 +12,29 @@ BEGIN
   FROM ArrowTextMaster
   WHERE treatmentname = v_treatment;
 
+  -- If treatment name not found, return 'U' (Up) as default
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+      RETURN 'U';
+    WHEN OTHERS THEN
+      RETURN 'U';
   RETURN v_treatment;
 END;
 /
 ```
 
-Now, when you run the test query with an example like `'PX140-IT/OR'`:
+This function will now return 'U' if the treatment name is not found in the `ArrowTextMaster` table. 
+
+If the treatment name is found, it will return the corresponding arrow direction, which must be either 'I' or 'O' according to your requirement. 
+
+Now, when you run the query:
 
 ```sql
 SELECT f_getarrow('PX140-IT/OR') AS arrow_direction
 FROM dual;
 ```
 
-It will return the `arrowdirection` value corresponding to `'IT'` from the `ArrowTextMaster` table. 
-
-Assuming in the `ArrowTextMaster` table `'IT'` corresponds to `'I'`, it will return:
+If `'IT'` is found in the `ArrowTextMaster` table with an arrow direction of 'I', it will return:
 
 ```plaintext
 | arrow_direction |
@@ -36,4 +42,20 @@ Assuming in the `ArrowTextMaster` table `'IT'` corresponds to `'I'`, it will ret
 | I               |
 ```
 
-Is this what you were looking for?
+If `'OR'` is found in the `ArrowTextMaster` table with an arrow direction of 'O', it will return:
+
+```plaintext
+| arrow_direction |
+|-----------------|
+| O               |
+```
+
+If neither 'IT' nor 'OR' is found in the `ArrowTextMaster` table, it will return:
+
+```plaintext
+| arrow_direction |
+|-----------------|
+| U               |
+```
+
+This ensures that the function returns 'U' if the treatment name is not found in the `ArrowTextMaster` table, and it only returns 'I' or 'O' if the treatment name corresponds to those values.
