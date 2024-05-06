@@ -1,17 +1,27 @@
-To see both the data from B1 that doesn't match with A1 and the data that matches, you can use two separate columns. In column C, you can list the unmatched data, and in column D, you can list the matched data. Here's how you can do it:
+CREATE OR REPLACE FUNCTION PFBCUSTOM.f_getarrow (product_i VARCHAR2)
+   RETURN VARCHAR2
+IS
+   arrow    VARCHAR2 (1);
+   prdstr   VARCHAR2 (1);
+   prdstr1  VARCHAR2 (1);
+BEGIN
+   SELECT   SUBSTR (product_i, INSTR (product_i, '-') + 2, 1),SUBSTR (product_i, INSTR (product_i, '-') + 1, 1)
+     INTO   prdstr,prdstr1
+     FROM   DUAL;
 
-In cell C2, use this formula to list unmatched data:
+   SELECT   CASE
+               WHEN (prdstr = 'I' OR prdstr1 = 'I') THEN 'U'
+               WHEN (prdstr = 'O' OR prdstr1 = 'O') THEN 'D'
+               ELSE '-'
+            END
+     INTO   arrow
+     FROM   DUAL;
 
-```excel
-=IF(ISERROR(VLOOKUP(B2, A:A, 1, FALSE)), B2, "")
-```
-
-In cell D2, use this formula to list matched data:
-
-```excel
-=IF(ISNUMBER(VLOOKUP(B2, A:A, 1, FALSE)), B2, "")
-```
-
-Then, drag these formulas down for the entire range of your data in column B.
-
-This setup will populate column C with unmatched data from B1 and column D with matched data. Any cell in columns C and D that doesn't have data will be blank.
+   RETURN arrow;
+EXCEPTION
+   WHEN OTHERS
+   THEN
+      arrow := '-';
+      RETURN arrow;
+END;
+/
