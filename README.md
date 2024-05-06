@@ -1,61 +1,11 @@
-Understood, let's modify the function to return 'U' if the treatment name is not found in the `ArrowTextMaster` table and ensure the arrow direction contains only 'I' and 'O'. Here's the updated function:
+USE [SRFPalletDB] GO /****** Object: UserDefinedFunction [dbo].[f_getarrow] Script Date: 5/6/2024 12:22:08 PM ******/ SET ANSI_NULLS ON GO SET QUOTED_IDENTIFIER ON GO
 
-```sql
-CREATE OR REPLACE FUNCTION f_getarrow(p_product VARCHAR2) RETURN VARCHAR2 AS
-  v_treatment VARCHAR2(10);
-BEGIN
-  -- Extract substring between '-' and '/'
-  v_treatment := SUBSTR(p_product, INSTR(p_product, '-') + 1, INSTR(p_product, '/') - INSTR(p_product, '-') - 1);
+ALTER FUNCTION [dbo].[f_getarrow] (@Product varchar(100)) RETURNs VARCHAR(100) AS BEGIN Declare @arrow varchar(1),@prdstr varchar(1),@prdstr1 varchar(1) SELECT @prdstr= substring (@Product, CharIndex ('-', @Product) + 2, 1),@prdstr1=substring (@Product, CharIndex ('-',@Product) + 1, 1)
 
-  -- Retrieve arrowdirection based on treatmentname from ArrowTextMaster
-  SELECT arrowdirection INTO v_treatment
-  FROM ArrowTextMaster
-  WHERE treatmentname = v_treatment;
+select @arrow=(Case when @prdstr='I' or @prdstr1='I' then 'U' when @prdstr='O' or @prdstr1='O' then 'D' else '-' end)
 
-  -- If treatment name not found, return 'U' (Up) as default
-  EXCEPTION
-    WHEN NO_DATA_FOUND THEN
-      RETURN 'U';
-    WHEN OTHERS THEN
-      RETURN 'U';
-  RETURN v_treatment;
-END;
-/
-```
+RETURN @arrow End
 
-This function will now return 'U' if the treatment name is not found in the `ArrowTextMaster` table. 
+i need wroking poeprly supoose take an exaple if i m giving this SELECT f_getarrow('PX140-IT/OR') FROM DUAL;
 
-If the treatment name is found, it will return the corresponding arrow direction, which must be either 'I' or 'O' according to your requirement. 
-
-Now, when you run the query:
-
-```sql
-SELECT f_getarrow('PX140-IT/OR') AS arrow_direction
-FROM dual;
-```
-
-If `'IT'` is found in the `ArrowTextMaster` table with an arrow direction of 'I', it will return:
-
-```plaintext
-| arrow_direction |
-|-----------------|
-| I               |
-```
-
-If `'OR'` is found in the `ArrowTextMaster` table with an arrow direction of 'O', it will return:
-
-```plaintext
-| arrow_direction |
-|-----------------|
-| O               |
-```
-
-If neither 'IT' nor 'OR' is found in the `ArrowTextMaster` table, it will return:
-
-```plaintext
-| arrow_direction |
-|-----------------|
-| U               |
-```
-
-This ensures that the function returns 'U' if the treatment name is not found in the `ArrowTextMaster` table, and it only returns 'I' or 'O' if the treatment name corresponds to those values.
+i should be getting' IT' and then matching 'IT' with my table ArrowTextMaster i should get "I " from column  treatmentname "IT" and I'll be getting arrowdirection"I " from respective columns is preset in remember I'm using Oracle not swl server five code accordingly 
