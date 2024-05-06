@@ -25,3 +25,16 @@ EXCEPTION
       RETURN arrow;
 END;
 /
+SR NO	ITEM_CODE		Arrow Direction	Discription to be print 
+65	1HSP0200-IHP/OR	IHP	In Side	HEAT SEAL
+107	1HSP0210-IHP/OR	IHP	In Side	HEAT SEAL
+![image]
+TreatmentName	ArrowDirection
+IT	I
+IQ	I
+IV	I
+IX	I
+![image](https://github.com/rahulsamsum007/app.py/assets/135415621/f2bbb691-7b1c-4c64-a7b6-ce24c1fb62f7)
+
+(https://github.com/rahulsamsum007/app.py/assets/135415621/a2ecfc8d-6540-4ad1-911d-dc75126bbbb2)
+
