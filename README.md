@@ -1,4 +1,6 @@
-USE [SRFPalletDB] GO /****** Object: UserDefinedFunction [dbo].[f_getarrow] Script Date: 5/6/2024 12:22:08 PM ******/ SET ANSI_NULLS ON GO SET QUOTED_IDENTIFIER ON GO
+
+
+But ur code is giving me wrong data my arrowdirection contains I and O only and if u didn't fint the matching string in treatment name then return u and dUSE [SRFPalletDB] GO /****** Object: UserDefinedFunction [dbo].[f_getarrow] Script Date: 5/6/2024 12:22:08 PM ******/ SET ANSI_NULLS ON GO SET QUOTED_IDENTIFIER ON GO
 
 ALTER FUNCTION [dbo].[f_getarrow] (@Product varchar(100)) RETURNs VARCHAR(100) AS BEGIN Declare @arrow varchar(1),@prdstr varchar(1),@prdstr1 varchar(1) SELECT @prdstr= substring (@Product, CharIndex ('-', @Product) + 2, 1),@prdstr1=substring (@Product, CharIndex ('-',@Product) + 1, 1)
 
