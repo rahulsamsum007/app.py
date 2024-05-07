@@ -1,13 +1,134 @@
+DECLARE
+    p_product VARCHAR2(100) := 'HSPA0210-ip/or';
+    v_arrow VARCHAR2(1);
+    v_prdstr VARCHAR2(100);
+    v_treatment_name VARCHAR2(100);
+    v_arrow_direction VARCHAR2(1);
+    v_count NUMBER;
+BEGIN
+    IF INSTR(p_product, '/') > 0 THEN
+        v_prdstr := SUBSTR(p_product, INSTR(p_product, '-', 1) + 1, INSTR(p_product, '/') - INSTR(p_product, '-') - 1);
+    ELSE
+        v_prdstr := SUBSTR(p_product, INSTR(p_product, '-', 1) + 1);
+    END IF;
+
+    SELECT COUNT(*) INTO v_count
+    FROM ArrowTextMaster
+    WHERE UPPER(treatmentname) = UPPER(v_prdstr);
+
+    IF v_count > 0 THEN
+        BEGIN
+            SELECT treatmentname, arrowdirection
+            INTO v_treatment_name, v_arrow_direction
+            FROM ArrowTextMaster
+            WHERE UPPER(treatmentname) = UPPER(v_prdstr);
+
+            DBMS_OUTPUT.PUT_LINE('Name: ' || v_treatment_name);
+
+            IF UPPER(v_treatment_name) LIKE '%I%' THEN
+                DBMS_OUTPUT.PUT_LINE('Arrow Direction: U');
+            ELSIF UPPER(v_treatment_name) LIKE '%O%' THEN
+                DBMS_OUTPUT.PUT_LINE('Arrow Direction: D');
+            ELSE
+                DBMS_OUTPUT.PUT_LINE('Arrow Direction: ' || v_arrow_direction);
+            END IF;
+        END;
+    ELSE
+        v_arrow := CASE
+            WHEN SUBSTR(v_prdstr, 1, 1) = 'I' OR SUBSTR(v_prdstr, 2, 1) = 'I' THEN
+                'U'
+            WHEN SUBSTR(v_prdstr, 1, 1) = 'O' OR SUBSTR(v_prdstr, 2, 1) = 'O' THEN
+                'D'
+            ELSE
+                '-'
+        END;
+
+        DBMS_OUTPUT.PUT_LINE('Arrow: ' || v_arrow);
+    END IF;
+END;
+/
 
 
-But ur code is giving me wrong data my arrowdirection contains I and O only and if u didn't fint the matching string in treatment name then return u and dUSE [SRFPalletDB] GO /****** Object: UserDefinedFunction [dbo].[f_getarrow] Script Date: 5/6/2024 12:22:08 PM ******/ SET ANSI_NULLS ON GO SET QUOTED_IDENTIFIER ON GO
 
-ALTER FUNCTION [dbo].[f_getarrow] (@Product varchar(100)) RETURNs VARCHAR(100) AS BEGIN Declare @arrow varchar(1),@prdstr varchar(1),@prdstr1 varchar(1) SELECT @prdstr= substring (@Product, CharIndex ('-', @Product) + 2, 1),@prdstr1=substring (@Product, CharIndex ('-',@Product) + 1, 1)
 
-select @arrow=(Case when @prdstr='I' or @prdstr1='I' then 'U' when @prdstr='O' or @prdstr1='O' then 'D' else '-' end)
 
-RETURN @arrow End
 
-i need wroking poeprly supoose take an exaple if i m giving this SELECT f_getarrow('PX140-IT/OR') FROM DUAL;
 
-i should be getting' IT' and then matching 'IT' with my table ArrowTextMaster i should get "I " from column  treatmentname "IT" and I'll be getting arrowdirection"I " from respective columns is preset in remember I'm using Oracle not swl server five code accordingly 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+DECLARE
+    p_product VARCHAR2(100) := 'HSPA0210-it';
+    arrowtxt VARCHAR2(50);
+    prdstr VARCHAR2(65);
+    treatment_name VARCHAR2(65);
+    arrow_direction VARCHAR2(1);
+BEGIN
+    IF INSTR(p_product, '/') > 0 THEN
+        prdstr := SUBSTR(p_product, INSTR(p_product, '-') + 1, INSTR(p_product, '/') - INSTR(p_product, '-') - 1);
+    ELSE
+        prdstr := SUBSTR(p_product, INSTR(p_product, '-') + 1);
+    END IF;
+
+    SELECT COUNT(*)
+    INTO arrow_direction
+    FROM ArrowTextMaster
+    WHERE UPPER(treatmentname) = UPPER(prdstr);
+
+    IF arrow_direction > 0 THEN
+        SELECT treatmentname, arrowdirection, arrowdescription
+        INTO treatment_name, arrow_direction, arrowtxt
+        FROM ArrowTextMaster
+        WHERE UPPER(treatmentname) = UPPER(prdstr);
+    ELSE
+        arrow_direction := CASE
+                               WHEN SUBSTR(prdstr, 1, 1) = 'I' OR SUBSTR(prdstr, 2, 1) = 'I' THEN 'U'
+                               WHEN SUBSTR(prdstr, 1, 1) = 'O' OR SUBSTR(prdstr, 2, 1) = 'O' THEN 'D'
+                               ELSE '-'
+                            END;
+        arrowtxt := '-';
+    END IF;
+
+    IF arrow_direction = 'D' AND arrowtxt = '-' THEN
+        SELECT arrowdescription
+        INTO arrowtxt
+        FROM ArrowTextMaster
+        WHERE UPPER(treatmentname) LIKE '%O%'
+          AND arrowdirection = 'D';
+    ELSIF arrow_direction = 'U' AND arrowtxt = '-' THEN
+        SELECT arrowdescription
+        INTO arrowtxt
+        FROM ArrowTextMaster
+        WHERE UPPER(treatmentname) LIKE '%I%'
+          AND arrowdirection = 'U';
+    END IF;
+
+    DBMS_OUTPUT.PUT_LINE('Arrow Text: ' || arrowtxt);
+
+EXCEPTION
+    WHEN OTHERS THEN
+        arrowtxt := '-';
+        DBMS_OUTPUT.PUT_LINE('Arrow Text: ' || arrowtxt);
+END;
+/
+
