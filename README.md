@@ -1,19 +1,14 @@
-Sure, here's a query to retrieve the information you need from Oracle ERP:
+**AutoSlit batches with verify in 2 or 10**
+FOLLOWING ARE THE BATCHES WITH VERIFY IN 2 OR 10
 
-```sql
-SELECT
-    h.org_id AS organization_id,
-    h.org_id AS org_id,
-    c.party_name AS customer_name,
-    h.invoice_number,
-    h.invoice_date AS date,
-    l.item_name AS item,
-    l.quantity AS qty,
-    l.line_amount AS inv_value
-FROM
-    ra_customer_trx_all h
-    INNER JOIN ra_customer_trx_lines_all l ON h.customer_trx_id = l.customer_trx_id
-    INNER JOIN hz_parties c ON h.bill_to_customer_id = c.party_id;
-```
+ORGANIZATION ID,	BATCH NUMBER,	MACHINE,	VERIFY,	BATCH DATE,	BATCH REMARKS
+240,	TU200045928,	TU2	,10	,17-MAY-2024 07:26:03,	Error Batch
 
-This query retrieves organization ID (`org_id`), organization ID (`organization_id`), customer name (`customer_name`), invoice number (`invoice_number`), invoice date (`date`), item name (`item`), quantity (`qty`), and invoice value (`inv_value`). It joins the necessary tables to get this information from Oracle ERP.
+Following are the Batches made avaiable on Machine for Correction
+
+**SA - Error in AutoSlit batches made by SCADA Program**
+BATCH_NO	MACHINE	BATCH_DATE	BATCH_REMARK
+SU200005679
+SU2
+05/16/2024 08:17:07 PM
+Inavlid Jumbo Roll 1 Status
