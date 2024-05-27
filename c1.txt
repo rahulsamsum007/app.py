@@ -1,0 +1,472 @@
+SELECT   P_ORG_ID Org_id,
+                 inv.bsv,
+                 inv.organization_code,
+                 inv.product_segment,
+                 inv.period_name,
+                 inv.mis_category,
+                 inv.market_type,
+                 ROUND (
+                    SUM (
+                       (NVL (inv.invoice_qty, 0) - NVL (cm.quantity, 0)) / 1000
+                    ),
+                    2
+                 )
+                    sales_qty_mt,
+                 ROUND (
+                    SUM ( (NVL (inv.basic_amt, 0) - NVL (cm.basic_amt, 0))),
+                    2
+                 )
+                    SALE_VALUE,
+                 ROUND (
+                    SUM( (  NVL (inv.basic_amt, 0)
+                          + NVL (inv.tax_amount, 0)
+                          - ( (NVL (cm.basic_amt, 0) + NVL (cm.tax_amount, 0)))))
+                    / SUM ( (NVL (inv.invoice_qty, 0) - NVL (cm.quantity, 0))),
+                    2
+                 )
+                    GROSS_NPR
+          FROM   (  SELECT   gcc.segment1 bsv,
+                             mp.organization_code,
+                             NVL (ott.attribute8, 'BOPET') product_segment,
+                             TO_CHAR (gp.gl_date, 'MON-RR') period_name,
+                             CASE
+                                WHEN UPPER (ctt.name) LIKE '%WDA%'
+                                     AND rct.org_id = 238
+                                THEN
+                                   'B-Grade '
+                                   || CASE
+                                         WHEN UPPER (msi.attribute9) LIKE
+                                                 '%METAL%'
+                                         THEN
+                                            'Metallized'
+                                         ELSE
+                                            'Plain'
+                                      END
+                                WHEN UPPER (ctt.name) LIKE '%WDA%'
+                                     AND rct.org_id <> 238
+                                THEN
+                                   'B-Grade ' || msi.attribute9
+                                ELSE
+                                   msi.attribute9
+                             END
+                                mis_category,
+                             ctt.attribute10 market_type,
+                             SUM (rctl.quantity_invoiced) invoice_qty,
+                             ROUND (
+                                SUM(rctl.extended_amount
+                                    * NVL (rct.EXCHANGE_RATE, 1)),
+                                2
+                             )
+                                basic_amt,
+                             0 tax_amount,
+                             msi.inventory_item_id,
+                             rctl.customer_trx_id
+                      FROM   ra_customer_trx_all rct,
+                             ar_customers rc,
+                             ra_customer_trx_lines_all rctl,
+                             mtl_system_items_b msi,
+                             oe_order_headers_all oeh,
+                             oe_order_lines_all oel,
+                             hz_cust_acct_sites_all hcasa,
+                             hz_cust_site_uses_all hcus,
+                             hz_party_sites hpz,
+                             hz_locations hzl,
+                             ra_cust_trx_types_all ctt,
+                             oe_transaction_types_all ott,
+                             mtl_parameters mp,
+                             gl_code_combinations gcc,
+                             (  SELECT   TRUNC (MAX (gl_date)) gl_date,
+                                         customer_trx_id
+                                  FROM   ra_cust_trx_line_gl_dist_all
+                                 WHERE       1 = 1
+                                         AND account_class = 'REC'
+                                         AND org_id = P_ORG_ID
+                                         AND P_ORG_ID <> 87
+                                         AND latest_rec_flag = 'Y'
+                              GROUP BY   customer_trx_id) gp
+                     WHERE       rct.org_id = P_ORG_ID
+                             AND P_ORG_ID <> 87
+                             AND rc.customer_id = rct.bill_to_customer_id
+                             AND rctl.customer_trx_id = rct.customer_trx_id
+                             AND ctt.cust_trx_type_id = rct.cust_trx_type_id
+                             AND msi.inventory_item_id = rctl.inventory_item_id
+                             AND oeh.order_type_id = ott.transaction_type_id
+                             AND ott.cust_trx_type_id = ctt.cust_trx_type_id
+                             AND NVL (ott.attribute4, 'N') = 'N'
+                             AND NVL (ctt.attribute8, 'N') = 'Y'
+                             AND rctl.warehouse_id = msi.organization_id
+                             AND rctl.sales_order = to_char(oeh.order_number)
+                             AND hpz.location_id = hzl.location_id
+                             AND oeh.header_id = oel.header_id
+                             AND oel.line_id =
+                                   TO_NUMBER (rctl.interface_line_attribute6)
+                             AND TO_CHAR (gp.gl_date, 'MON-RR') =
+                                   UPPER (P_PERIOD)
+                             AND rct.customer_trx_id = gp.customer_trx_id
+                             AND rct.trx_number IS NOT NULL
+                             AND rctl.line_type = 'LINE'
+                             AND NVL (ctt.attribute10, 'XX') =
+                                   CASE
+                                      WHEN ctt.org_id = 1397
+                                      THEN
+                                         'Domestic Sales'
+                                      ELSE
+                                         NVL (ctt.attribute10, 'XX')
+                                   END
+                             AND hpz.party_site_id = hcasa.party_site_id
+                             AND rc.customer_id = hcasa.cust_account_id
+                             AND hcus.site_use_id = rct.bill_to_site_use_id
+                             AND hcasa.cust_acct_site_id = hcus.cust_acct_site_id
+                             AND hcasa.cust_account_id = rct.bill_to_customer_id
+                             AND msi.organization_id = mp.organization_id
+                             AND mp.material_account = gcc.code_combination_id
+                  GROUP BY   gcc.segment1,
+                             mp.organization_code,
+                             msi.attribute9,
+                             msi.inventory_item_id,
+                             rctl.customer_trx_id,
+                             ctt.name,
+                             rct.org_id,
+                             ctt.attribute10,
+                             NVL (ott.attribute8, 'BOPET'),
+                             TO_CHAR (gp.gl_date, 'MON-RR')) inv,
+                 (  SELECT   rctlo.customer_trx_id,
+                             rctl.inventory_item_id,
+                             ABS(SUM(rctl.extended_amount
+                                     * NVL (rcta.EXCHANGE_RATE, 1)))
+                                basic_amt,
+                             ABS (SUM (rctl.quantity_credited)) quantity,
+                             0 tax_amount
+                      FROM   ra_cust_trx_types_all ctt,
+                             ra_customer_trx_all rcta,
+                             ra_customer_trx_lines_all rctl,
+                             ra_customer_trx_lines_all rctlo,
+                             oe_order_lines_all ool,
+                             (  SELECT   TRUNC (MAX (gl_date)) gl_date,
+                                         customer_trx_id
+                                  FROM   ra_cust_trx_line_gl_dist_all
+                                 WHERE       1 = 1
+                                         AND account_class = 'REC'
+                                         AND org_id = P_ORG_ID
+                                         AND P_ORG_ID <> 87
+                                         AND latest_rec_flag = 'Y'
+                              GROUP BY   customer_trx_id) gp
+                     WHERE       1 = 1
+                             AND rcta.cust_trx_type_id = ctt.cust_trx_type_id
+                             AND rcta.org_id = rctl.org_id
+                             AND rcta.customer_trx_id = rctl.customer_trx_id
+                             AND rcta.customer_trx_id = gp.customer_trx_id
+                             AND TO_CHAR (gp.gl_date, 'MON-RR') =
+                                   UPPER (P_PERIOD)
+                             AND rctl.line_type = 'LINE'
+                             AND rcta.org_id = P_ORG_ID
+                             AND P_ORG_ID <> 87
+                             AND ctt.TYPE = 'CM'
+                             AND rctl.previous_customer_trx_id =
+                                   rctlo.customer_trx_id
+                             AND rctl.previous_customer_trx_line_id =
+                                   rctlo.customer_trx_line_id
+                             AND ool.line_id = rctlo.interface_line_attribute6
+                             AND EXISTS
+                                   (SELECT   1
+                                      FROM   ra_cust_trx_types_all rctt
+                                     WHERE   NVL (rctt.attribute8, 'N') = 'Y'
+                                             AND rctt.credit_memo_type_id =
+                                                   ctt.cust_trx_type_id
+                                             AND rctt.org_id = ctt.org_id
+                                             AND NVL (rctt.attribute10, 'XX') =
+                                                   CASE
+                                                      WHEN rctt.org_id = 1397
+                                                      THEN
+                                                         'Domestic Sales'
+                                                      ELSE
+                                                         NVL (ctt.attribute10,
+                                                              'XX')
+                                                   END)
+                  GROUP BY   rctlo.customer_trx_id, rctl.inventory_item_id
+                  UNION ALL
+                    SELECT   rctlo.customer_trx_id,
+                             rctl.inventory_item_id,
+                             ABS(SUM(rctl.extended_amount
+                                     * NVL (rcta.EXCHANGE_RATE, 1)))
+                                basic_amt,
+                             ABS (SUM (rctl.quantity_credited)) quantity,
+                             0 tax_amount
+                      FROM   ra_cust_trx_types_all ctt,
+                             ra_customer_trx_all rcta,
+                             ra_customer_trx_lines_all rctl,
+                             ra_customer_trx_lines_all rctlo,
+                             oe_order_lines_all ool,
+                             (  SELECT   TRUNC (MAX (gl_date)) gl_date,
+                                         customer_trx_id
+                                  FROM   ra_cust_trx_line_gl_dist_all
+                                 WHERE       1 = 1
+                                         AND account_class = 'REC'
+                                         AND org_id = P_ORG_ID
+                                         AND P_ORG_ID <> 87
+                                         AND latest_rec_flag = 'Y'
+                              GROUP BY   customer_trx_id) gp
+                     WHERE       1 = 1
+                             AND rcta.cust_trx_type_id = ctt.cust_trx_type_id
+                             AND rcta.org_id = rctl.org_id
+                             AND rcta.customer_trx_id = rctl.customer_trx_id
+                             AND rcta.customer_trx_id = gp.customer_trx_id
+                             AND TO_CHAR (gp.gl_date, 'MON-RR') =
+                                   UPPER (P_PERIOD)
+                             AND rctl.line_type = 'LINE'
+                             AND rcta.org_id = P_ORG_ID
+                             AND P_ORG_ID <> 87
+                             AND ctt.TYPE = 'CM'
+                             AND rctl.previous_customer_trx_id IS NULL
+                             AND ool.return_attribute1 = rctlo.customer_trx_id
+                             AND ool.return_attribute2 =
+                                   rctlo.customer_trx_line_id
+                             AND ool.line_id = rctl.interface_line_attribute6
+                             AND EXISTS
+                                   (SELECT   1
+                                      FROM   ra_cust_trx_types_all rctt
+                                     WHERE   NVL (rctt.attribute8, 'N') = 'Y'
+                                             AND rctt.credit_memo_type_id =
+                                                   ctt.cust_trx_type_id
+                                             AND rctt.org_id = ctt.org_id
+                                             AND NVL (rctt.attribute10, 'XX') =
+                                                   CASE
+                                                      WHEN rctt.org_id = 1397
+                                                      THEN
+                                                         'Domestic Sales'
+                                                      ELSE
+                                                         NVL (ctt.attribute10,
+                                                              'XX')
+                                                   END)
+                  GROUP BY   rctlo.customer_trx_id, rctl.inventory_item_id) cm
+         WHERE   inv.customer_trx_id = cm.customer_trx_id(+)
+                 AND inv.inventory_item_id = cm.inventory_item_id(+)
+      GROUP BY   inv.bsv,
+                 inv.organization_code,
+                 inv.product_segment,
+                 inv.period_name,
+                 inv.mis_category,
+                 inv.market_type
+      UNION
+        SELECT   P_ORG_ID Org_id,
+                 gcc.segment1 bsv,
+                 mp.organization_code,
+                 NVL (
+                    CTT.attribute11,
+                    MAX( (  SELECT   NVL (ott.attribute8, 'BOPET')
+                              FROM   ra_cust_trx_types_all rctt,
+                                     oe_transaction_types_all ott
+                             WHERE   NVL (rctt.attribute8, 'N') = 'Y'
+                                     AND NVL (ott.attribute4, 'N') = 'N'
+                                     AND rctt.cust_trx_type_id =
+                                           ott.cust_trx_type_id
+                                     AND rctt.credit_memo_type_id =
+                                           ctt.cust_trx_type_id
+                                     AND ORDER_CATEGORY_CODE <> 'RETURN'
+                                     AND rctt.org_id = ctt.org_id
+                          GROUP BY   NVL (ott.attribute8, 'BOPET')))
+                 )
+                    product_segment,
+                 TO_CHAR (gpc.gl_date, 'MON-RR') period_name,
+                 'Sales Return' mis_category,
+                 rctto.attribute10 market_type,
+                 SUM (rctl.quantity_credited) / 1000 quantity,
+                 ROUND (
+                    SUM( (rctl.quantity_credited * rctl.unit_selling_price)
+                        * NVL (rcta.EXCHANGE_RATE, 1)),
+                    2
+                 )
+                    SALE_VALUE,
+                 ROUND (
+                    (SUM (rctl.quantity_credited * rctl.unit_selling_price)
+                     / (SUM (rctl.quantity_credited))),
+                    2
+                 )
+                    npr_rs_kg
+          FROM   ra_cust_trx_types_all ctt,
+                 ra_customer_trx_all rcta,
+                 ra_customer_trx_lines_all rctl,
+                 ra_customer_trx_lines_all rctlo,
+                 ra_customer_trx_all rcto,
+                 oe_order_lines_all ool,
+                 mtl_system_items msi,
+                 ra_cust_trx_types_all rctto,
+                 mtl_parameters mp,
+                 gl_code_combinations gcc,
+                 (  SELECT   TRUNC (MAX (gl_date)) gl_date, customer_trx_id
+                      FROM   ra_cust_trx_line_gl_dist_all
+                     WHERE       1 = 1
+                             AND account_class = 'REC'
+                             AND org_id = P_ORG_ID
+                             AND P_ORG_ID <> 87
+                             AND latest_rec_flag = 'Y'
+                  GROUP BY   customer_trx_id) gpo,
+                 (  SELECT   TRUNC (MAX (gl_date)) gl_date, customer_trx_id
+                      FROM   ra_cust_trx_line_gl_dist_all
+                     WHERE       1 = 1
+                             AND account_class = 'REC'
+                             AND org_id = P_ORG_ID
+                             AND P_ORG_ID <> 87
+                             AND latest_rec_flag = 'Y'
+                  GROUP BY   customer_trx_id) gpc
+         WHERE       1 = 1
+                 AND rcta.cust_trx_type_id = ctt.cust_trx_type_id
+                 AND rcta.org_id = rctl.org_id
+                 AND rcta.customer_trx_id = rctl.customer_trx_id
+                 AND rcto.cust_trx_type_id = rctto.cust_trx_type_id
+                 AND rcta.customer_trx_id = gpc.customer_trx_id
+                 AND TO_CHAR (gpc.gl_date, 'MON-RR') = UPPER (P_PERIOD)
+                 AND rcto.customer_trx_id = gpo.customer_trx_id
+                 AND rctl.line_type = 'LINE'
+                 AND ctt.TYPE = 'CM'
+                 AND rctl.previous_customer_trx_id = rctlo.customer_trx_id
+                 AND rctlo.customer_trx_id = rcto.customer_trx_id
+                 AND TO_CHAR (gpc.gl_date, 'MON-RR') <>
+                       TO_CHAR (gpo.gl_date, 'MON-RR')
+                 AND rctl.previous_customer_trx_line_id =
+                       rctlo.customer_trx_line_id
+                 AND rctl.previous_customer_trx_line_id IS NOT NULL
+                 AND ool.line_id = rctlo.interface_line_attribute6
+                 AND ool.ship_from_org_id = msi.organization_id
+                 AND rctl.inventory_item_id = msi.inventory_item_id
+                 AND mp.organization_id = msi.organization_id
+                 AND gcc.code_combination_id = mp.material_account
+                 AND rcta.org_id = P_ORG_ID
+                 AND P_ORG_ID <> 87
+                 AND EXISTS
+                       (SELECT   1
+                          FROM   ra_cust_trx_types_all rctt,
+                                 oe_transaction_types_all ott
+                         WHERE   NVL (rctt.attribute8, 'N') = 'Y'
+                                 AND NVL (ott.attribute4, 'N') = 'N'
+                                 AND rctt.cust_trx_type_id =
+                                       ott.cust_trx_type_id
+                                 AND rctt.credit_memo_type_id =
+                                       ctt.cust_trx_type_id
+                                 AND ORDER_CATEGORY_CODE <> 'RETURN'
+                                 AND rctt.org_id = ctt.org_id
+                                 AND NVL (rctt.attribute10, 'XX') =
+                                       CASE
+                                          WHEN rctt.org_id = 1397
+                                          THEN
+                                             'Domestic Sales'
+                                          ELSE
+                                             NVL (ctt.attribute10, 'XX')
+                                       END)
+      GROUP BY   msi.organization_id,
+                 TO_CHAR (gpc.gl_date, 'MON-RR'),
+                 gcc.segment1,
+                 rctto.attribute10,
+                 mp.organization_code,
+                 CTT.attribute11
+      UNION
+        SELECT   P_ORG_ID Org_id,
+                 gcc.segment1 bsv,
+                 mp.organization_code,
+                 NVL (
+                    CTT.attribute11,
+                    MAX( (  SELECT   NVL (ott.attribute8, 'BOPET')
+                              FROM   ra_cust_trx_types_all rctt,
+                                     oe_transaction_types_all ott
+                             WHERE   NVL (rctt.attribute8, 'N') = 'Y'
+                                     AND NVL (ott.attribute4, 'N') = 'N'
+                                     AND rctt.cust_trx_type_id =
+                                           ott.cust_trx_type_id
+                                     AND ORDER_CATEGORY_CODE <> 'RETURN'
+                                     AND rctt.credit_memo_type_id =
+                                           ctt.cust_trx_type_id
+                                     AND rctt.org_id = ctt.org_id
+                          GROUP BY   NVL (ott.attribute8, 'BOPET')))
+                 )
+                    product_segment,
+                 TO_CHAR (gpc.gl_date, 'MON-RR') period_name,
+                 'Sales Return' mis_category,
+                 rctto.attribute10 market_type,
+                 SUM (rctl.quantity_credited) / 1000 quantity,
+                 ROUND (
+                    SUM( (rctl.quantity_credited * rctl.unit_selling_price)
+                        * NVL (rcta.EXCHANGE_RATE, 1)),
+                    2
+                 )
+                    SALE_VALUE,
+                 ROUND (
+                    (SUM (rctl.quantity_credited * rctl.unit_selling_price)
+                     / (SUM (rctl.quantity_credited))),
+                    2
+                 )
+                    npr_rs_kg
+          FROM   ra_cust_trx_types_all ctt,
+                 ra_customer_trx_all rcta,
+                 ra_customer_trx_lines_all rctl,
+                 ra_customer_trx_lines_all rctlo,
+                 ra_customer_trx_all rcto,
+                 oe_order_lines_all ool,
+                 mtl_system_items msi,
+                 ra_cust_trx_types_all rctto,
+                 mtl_parameters mp,
+                 gl_code_combinations gcc,
+                 (  SELECT   TRUNC (MAX (gl_date)) gl_date, customer_trx_id
+                      FROM   ra_cust_trx_line_gl_dist_all
+                     WHERE       1 = 1
+                             AND account_class = 'REC'
+                             AND org_id = P_ORG_ID
+                             AND P_ORG_ID <> 87
+                             AND latest_rec_flag = 'Y'
+                  GROUP BY   customer_trx_id) gpo,
+                 (  SELECT   TRUNC (MAX (gl_date)) gl_date, customer_trx_id
+                      FROM   ra_cust_trx_line_gl_dist_all
+                     WHERE       1 = 1
+                             AND account_class = 'REC'
+                             AND org_id = P_ORG_ID
+                             AND P_ORG_ID <> 87
+                             AND latest_rec_flag = 'Y'
+                  GROUP BY   customer_trx_id) gpc
+         WHERE       1 = 1
+                 AND rcta.cust_trx_type_id = ctt.cust_trx_type_id
+                 AND rcta.org_id = rctl.org_id
+                 AND rcta.customer_trx_id = rctl.customer_trx_id
+                 AND rcto.cust_trx_type_id = rctto.cust_trx_type_id
+                 AND rcta.customer_trx_id = gpc.customer_trx_id
+                 AND TO_CHAR (gpc.gl_date, 'MON-RR') = UPPER (P_PERIOD)
+                 AND rcto.customer_trx_id = gpo.customer_trx_id
+                 AND rctl.line_type = 'LINE'
+                 AND ctt.TYPE = 'CM'
+                 AND ool.return_attribute1 = rctlo.customer_trx_id
+                 AND rctlo.customer_trx_id = rcto.customer_trx_id
+                 AND TO_CHAR (gpc.gl_date, 'MON-RR') <>
+                       TO_CHAR (gpo.gl_date, 'MON-RR')
+                 AND ool.return_attribute2 = rctlo.customer_trx_line_id
+                 AND ool.line_id = rctl.interface_line_attribute6
+                 AND ool.ship_from_org_id = msi.organization_id
+                 AND rctl.inventory_item_id = msi.inventory_item_id
+                 AND mp.organization_id = msi.organization_id
+                 AND gcc.code_combination_id = mp.material_account
+                 AND rctl.previous_customer_trx_line_id IS NULL
+                 AND rcta.org_id = P_ORG_ID
+                 AND P_ORG_ID <> 87
+                 AND EXISTS
+                       (SELECT   1
+                          FROM   ra_cust_trx_types_all rctt,
+                                 oe_transaction_types_all ott
+                         WHERE   NVL (rctt.attribute8, 'N') = 'Y'
+                                 AND NVL (ott.attribute4, 'N') = 'N'
+                                 AND rctt.cust_trx_type_id =
+                                       ott.cust_trx_type_id
+                                 AND rctt.credit_memo_type_id =
+                                       ctt.cust_trx_type_id
+                                 AND rctt.org_id = ctt.org_id
+                                 AND ORDER_CATEGORY_CODE <> 'RETURN'
+                                 AND NVL (rctt.attribute10, 'XX') =
+                                       CASE
+                                          WHEN rctt.org_id = 1397
+                                          THEN
+                                             'Domestic Sales'
+                                          ELSE
+                                             NVL (ctt.attribute10, 'XX')
+                                       END)
+      GROUP BY   msi.organization_id,
+                 TO_CHAR (gpc.gl_date, 'MON-RR'),
+                 gcc.segment1,
+                 rctto.attribute10,
+                 mp.organization_code,
+                 CTT.attribute11;
