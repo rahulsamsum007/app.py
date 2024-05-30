@@ -1,193 +1,229 @@
-NOW I WANT YOUR HELP IN CHECKING SOMETHING IN ABOVE CODE AS YOU SEE THAT WE WERE CALCUALTING TO RATIO.
-1. NOW I WANT TO CHECK CODE IM GIVING YOU NOW IN THIS IO_RATIO IS ALSO PRESENT SO IT IT SAME THAT WE WERE DOING ABOVE OR IT IS DIFFERENT.
-----------------------------------------------------------------------------------------------------------------------------
--------------------------------------------- FINAL OUTPUT ------------------------------------------------------------------
-----------------------------------------------------------------------------------------------------------------------------
-SELECT SALE.ORGANIZATION_ID,
-       SALE.TRX_DATE,
-       SALE.PRODUCT_TYPE,
-       SALE.ITEM_CODE,
-       SALE.INV_QUANTITY,
-       SALE.NET_VALUE,
-       SALE.NPR,
-       EXPENSE.THROUGHPUT,
-       EXPENSE.RM_CUR_VALUE RM_COST,
-       ROUND(EXPENSE.HOMOPOLYMER_COST, 2) HOMOPOLYMER_COST,
-       ROUND(EXPENSE.ADDITIVE_COST, 2) ADDITIVE_COST,
-       ROUND(EXPENSE.IO_RATIO, 3) IO_RATIO,
-       EXPENSE.POWER_COST,
-       EXPENSE.FUEL_AND_WATER,
-       EXPENSE.PRODUCTION_CONSUMABLE,
-       EXPENSE.MET_COST,
-       ROUND((HOMOPOLYMER_COST + ADDITIVE_COST + IO_RATIO + POWER_COST + FUEL_AND_WATER + PRODUCTION_CONSUMABLE + MET_COST), 2) TOTAL_COST,
-       ROUND(SALE.NPR - (HOMOPOLYMER_COST + ADDITIVE_COST + IO_RATIO + POWER_COST + FUEL_AND_WATER + PRODUCTION_CONSUMABLE + MET_COST), 2) CONTRI_PER_KG
-  FROM (  SELECT ORGANIZATION_ID,
-                 LAST_DAY (TRX_DATE)                                       TRX_DATE,
-                 PRODUCT_TYPE,
-                 ITEM_CODE,
-                 JUMBO_ITEM_CODE,
-                 MET_FILM,
-                 MICRON,
-                 ROUND (SUM (INV_QUANTITY), 2)                             INV_QUANTITY,
-                 ROUND (SUM (NET_VALUE), 2)                                NET_VALUE,
-                 ROUND ((SUM (NET_VALUE) / SUM (INV_QUANTITY)), 2) - 4 /* FREIGHT AMT*/  NPR
-            FROM (SELECT A.ORGANIZATION_ID,
-                         B.NPR_HEADER_ID,
-                         B.NPR_DETAIL_ID,
-                         B.CUSTOMER_TRX_ID,
-                         B.TRX_NUMBER,
-                         B.TRX_DATE,
-                         TO_CHAR (B.TRX_DATE, 'MON')     TRX_MONTH,
-                         TO_CHAR (B.TRX_DATE, 'RRRR')    TRX_YEAR,
-                         B.INVOICE_TYPE,
-                         B.CUSTOMER_ID,
-                         B.CUSTOMER_NAME,
-                         B.REGION,
-                         B.PRICE_LIST_NAME,
-                         B.ITEM_CODE,
-                         JFG.JUMBO_ITEM_CODE,
-                         JFG.MET_FILM,
-                         MSI.ATTRIBUTE1                  MICRON,
+SELECT :P_ORG_ID Org_id,
+       inv.bsv,
+       inv.organization_code,
+       inv.product_segment,
+       inv.period_name,
+       inv.mis_category,
+       inv.market_type,
+       inv.item,
+       ROUND (SUM ((NVL (inv.invoice_qty, 0) - NVL (cm.quantity, 0)) / 1000),2
+       ) sales_qty_mt,
+       ROUND (SUM ((NVL (inv.basic_amt, 0) - NVL (cm.basic_amt, 0))),2
+       ) SALE_VALUE,
+       ROUND (SUM( (  NVL (inv.basic_amt, 0)
+                + NVL (inv.tax_amount, 0)- ( (NVL (cm.basic_amt, 0) + NVL (cm.tax_amount, 0)))))
+          / SUM ( (NVL (inv.invoice_qty, 0) - NVL (cm.quantity, 0))),2
+       ) GROSS_NPR
+FROM (SELECT gcc.segment1 bsv,
+             mp.organization_code,
+             NVL (ott.attribute8, 'BOPET') product_segment,
+             TO_CHAR (gp.gl_date, 'MON-RR') period_name,
+             CASE
+                WHEN UPPER (ctt.name) LIKE '%WDA%'
+                     AND rct.org_id = 238
+                THEN
+                   'B-Grade '
+                   || CASE
+                         WHEN UPPER (msi.attribute9) LIKE '%METAL%'
+                         THEN
+                            'Metallized'
+                         ELSE
+                            'Plain'
+                      END
+                WHEN UPPER (ctt.name) LIKE '%WDA%'
+                     AND rct.org_id <> 238
+                THEN
+                   'B-Grade ' || msi.attribute9
+                ELSE
+                   msi.attribute9
+             END mis_category,
+             ctt.attribute10 market_type,
+             msi.segment1 item, -- New column added
+             SUM (rctl.quantity_invoiced) invoice_qty,
+             ROUND (
+                SUM( rctl.extended_amount
+                   * NVL (rct.EXCHANGE_RATE, 1)),
+                2
+             ) basic_amt,
+             0 tax_amount,
+             msi.inventory_item_id,
+             rctl.customer_trx_id
+      FROM ra_customer_trx_all rct,
+           ar_customers rc,
+           ra_customer_trx_lines_all rctl,
+           mtl_system_items_b msi, 
+           oe_order_headers_all oeh,
+           oe_order_lines_all oel,
+           hz_cust_acct_sites_all hcasa,
+           hz_cust_site_uses_all hcus,
+           hz_party_sites hpz,
+           hz_locations hzl,
+           ra_cust_trx_types_all ctt,
+           oe_transaction_types_all ott,
+           mtl_parameters mp,
+           gl_code_combinations gcc,
+           (SELECT TRUNC (MAX (gl_date)) gl_date,
+                   customer_trx_id
+            FROM ra_cust_trx_line_gl_dist_all
+            WHERE 1 = 1
+                  AND account_class = 'REC'
+                  AND org_id = :P_ORG_ID
+                  AND :P_ORG_ID <> 87
+                  AND latest_rec_flag = 'Y'
+            GROUP BY customer_trx_id) gp
+     WHERE rct.org_id = :P_ORG_ID
+           AND :P_ORG_ID <> 87
+           AND rc.customer_id = rct.bill_to_customer_id
+           AND rc.customer_id = hcasa.cust_account_id
+           AND rctl.customer_trx_id = rct.customer_trx_id
+           AND ctt.cust_trx_type_id = rct.cust_trx_type_id
+           AND msi.inventory_item_id = rctl.inventory_item_id 
+           AND oeh.order_type_id = ott.transaction_type_id
+           AND ott.cust_trx_type_id = ctt.cust_trx_type_id
+           AND NVL (ott.attribute4, 'N') = 'N'
+           AND NVL (ctt.attribute8, 'N') = 'Y'
+           AND rctl.warehouse_id = msi.organization_id
+           AND rctl.sales_order = to_char(oeh.order_number)
+           AND hpz.location_id = hzl.location_id
+           AND oeh.header_id = oel.header_id
+           AND oel.line_id =
+                 TO_NUMBER (rctl.interface_line_attribute6)
+           AND TO_CHAR (gp.gl_date, 'MON-RR') = UPPER (:P_PERIOD)
+           AND rct.customer_trx_id = gp.customer_trx_id
+           AND rct.trx_number IS NOT NULL
+           AND rctl.line_type = 'LINE'
+           AND NVL (ctt.attribute10, 'XX') =
+                 CASE
+                    WHEN ctt.org_id = 1397
+                    THEN
+                       'Domestic Sales'
+                    ELSE
+                       NVL (ctt.attribute10, 'XX')
+                 END
+           AND hpz.party_site_id = hcasa.party_site_id
+           
+           AND hcus.site_use_id = rct.bill_to_site_use_id
+           AND hcasa.cust_acct_site_id = hcus.cust_acct_site_id
+           AND hcasa.cust_account_id = rct.bill_to_customer_id
+           AND msi.organization_id = mp.organization_id
+           AND mp.material_account = gcc.code_combination_id
+  GROUP BY gcc.segment1,
+           mp.organization_code,
+           msi.attribute9,
+           msi.inventory_item_id,
+           msi.segment1, 
+           rctl.customer_trx_id,
+           ctt.name,
+           rct.org_id,
+           ctt.attribute10,
+           NVL (ott.attribute8, 'BOPET'),
+           TO_CHAR (gp.gl_date, 'MON-RR')) inv,
+           (SELECT rctlo.customer_trx_id,
+       rctl.inventory_item_id,
+       ABS(SUM(rctl.extended_amount
+               * NVL (rcta.EXCHANGE_RATE, 1)))
+          basic_amt,
+       ABS (SUM (rctl.quantity_credited)) quantity,
+       0 tax_amount
+FROM ra_cust_trx_types_all ctt,
+     ra_customer_trx_all rcta,
+     ra_customer_trx_lines_all rctl,
+     ra_customer_trx_lines_all rctlo,
+     oe_order_lines_all ool,
+     (SELECT TRUNC (MAX (gl_date)) gl_date,
+             customer_trx_id
+      FROM ra_cust_trx_line_gl_dist_all
+      WHERE 1 = 1
+            AND account_class = 'REC'
+            AND org_id = :P_ORG_ID
+            AND :P_ORG_ID <> 87
+            AND latest_rec_flag = 'Y'
+      GROUP BY customer_trx_id) gp
+WHERE 1 = 1
+     AND rcta.cust_trx_type_id = ctt.cust_trx_type_id
+     AND rcta.org_id = rctl.org_id
+     AND rcta.customer_trx_id = rctl.customer_trx_id
+     AND rcta.customer_trx_id = gp.customer_trx_id
+     AND TO_CHAR (gp.gl_date, 'MON-RR') = UPPER (:P_PERIOD)
+     AND rctl.line_type = 'LINE'
+     AND rcta.org_id = :P_ORG_ID
+     AND :P_ORG_ID <> 87
+     AND ctt.TYPE = 'CM'
+     AND rctl.previous_customer_trx_id = rctlo.customer_trx_id
+     AND rctl.previous_customer_trx_line_id = rctlo.customer_trx_line_id
+     AND ool.line_id = rctlo.interface_line_attribute6
+     AND EXISTS
+           (SELECT 1
+            FROM ra_cust_trx_types_all rctt
+            WHERE NVL (rctt.attribute8, 'N') = 'Y'
+                  AND rctt.credit_memo_type_id = ctt.cust_trx_type_id
+                  AND rctt.org_id = ctt.org_id
+                  AND NVL (rctt.attribute10, 'XX') =
                          CASE
-                             WHEN INVENTORY.SEGMENT2 IN ('PET', 'BOP')
-                             THEN INVENTORY.SEGMENT2
-                             WHEN B.INVOICE_TYPE LIKE '%PET%'
-                             THEN 'PET'
-                             WHEN B.INVOICE_TYPE LIKE '%BOP%'
-                             THEN 'BOP'
-                             ELSE INVENTORY.SEGMENT2
-                         END                             PRODUCT_TYPE,
-                         B.INV_QUANTITY,
-                         B.NPR,
-                         B.INV_QUANTITY * (B.NPR - DECODE (NVL (B.PACKING_TYPE, 'LOOSE'), 'LOOSE', 2, 5)) NET_VALUE --B.NET_VALUE
-                    FROM XXSRF.XXSRF_PFB_NPR_HEADERS       A,
-                         XXSRF.XXSRF_PFB_NPR_FINAL_DETAILS B,
-                         APPS.MTL_SYSTEM_ITEMS_B           MSI,
-                         XXSRF.PFB_CONTRI_JUMBO_FG_ITEM_MAP JFG,
-                         (SELECT MIC.ORGANIZATION_ID,
-                                 MIC.INVENTORY_ITEM_ID,
-                                 MCV.SEGMENT2
-                            FROM APPS.MTL_ITEM_CATEGORIES         MIC,
-                                 APPS.MTL_CATEGORY_SETS           MCS,
-                                 APPS.MTL_CATEGORIES_VL           MCV,
-                                 APPS.ORG_ORGANIZATION_DEFINITIONS OOD1
-                           WHERE     MIC.ORGANIZATION_ID = OOD1.ORGANIZATION_ID --IN (112, 114, 1036, 1076, 1700, 1801, 1941)
-                                 AND OOD1.OPERATING_UNIT = 87
-                                 AND MIC.ORGANIZATION_ID = :P_ORGANIZATION_ID
-                                 AND MIC.CATEGORY_SET_ID = MCS.CATEGORY_SET_ID
-                                 AND MIC.CATEGORY_ID = MCV.CATEGORY_ID
-                                 AND MCS.CATEGORY_SET_NAME = 'Inventory') INVENTORY
-                   WHERE     TRUNC (TRX_DATE) >= TRUNC ( :P_DATE, 'MM')
-                         AND TRUNC (TRX_DATE) <= TRUNC (LAST_DAY ( :P_DATE))
-                         AND A.NPR_HEADER_ID = B.NPR_HEADER_ID
-                         AND MSI.ORGANIZATION_ID = A.ORGANIZATION_ID
-                         AND A.ORGANIZATION_ID = :P_ORGANIZATION_ID
-                         AND MSI.INVENTORY_ITEM_ID = B.INVENTORY_ITEM_ID
-                         AND MSI.ITEM_TYPE = 'FILM'
-                         AND INVENTORY.ORGANIZATION_ID = A.ORGANIZATION_ID
-                         AND INVENTORY.INVENTORY_ITEM_ID = B.INVENTORY_ITEM_ID
-                         AND INVENTORY.SEGMENT2 = 'BOP'
-                         AND A.ORGANIZATION_ID = JFG.ORGANIZATION_ID(+)
-                         AND B.ITEM_CODE = JFG.FG_ITEM_CODE(+))
---                         AND B.ITEM_CODE IN ('SSW15-TI/A01-HO', 'SM18-TI/A01-P2'))
-        GROUP BY ORGANIZATION_ID,
-                 LAST_DAY (TRX_DATE),
-                 PRODUCT_TYPE,
-                 ITEM_CODE,
-                 JUMBO_ITEM_CODE,
-                 MET_FILM,
-                 MICRON) SALE,
-(SELECT X.ORGANIZATION_ID,
-       Y.PRODUCT_TYPE,
-       X.FG_ITEM_CODE,
-       X.JUMBO_ITEM_CODE,
-       X.MET_FILM,
-       X.TRX_DATE,
-       X.RM_CUR_VALUE,
-       X.HOMOPOLYMER_COST,
-       X.MET_COST,
-       X.RM_CUR_VALUE - (X.HOMOPOLYMER_COST + X.IO_RATIO)     ADDITIVE_COST,
-       X.IO_RATIO,
-       Y.POWER_COST,
-       Y.FUEL_AND_WATER,
-       Y.PRODUCTION_CONSUMABLE,
-       Y.THROUGHPUT
-  FROM (  SELECT ORGANIZATION_ID,
-                 FG_ITEM_CODE,
-                 JUMBO_ITEM_CODE,
-                 MAX (MET_FILM)             MET_FILM,
-                 TRX_DATE,
-                 SUM (RM_CUR_VALUE)         RM_CUR_VALUE,
-                 SUM (HOMOPOLYMER_COST)     HOMOPOLYMER_COST,
-                 SUM (MET_COST)             MET_COST,
-                 SUM (IO_RATIO)             IO_RATIO
-            FROM (SELECT ORGANIZATION_ID,
-                         FG_ITEM_CODE,
-                         JUMBO_ITEM_CODE,
-                         MET_FILM,
-                         TRX_DATE,
-                         RM_CUR_VALUE,
-                         HOMOPOLYMER_COST,
-                         NVL((SELECT MET_COST
-                                FROM XXSRF.PFB_CONTRI_VC_COST_DATA C
-                               WHERE     C.ORGANIZATION_ID = A.ORGANIZATION_ID
-                                     AND TRUNC (C.TRX_DATE) = TRUNC (A.TRX_DATE)
-                                     AND C.PRODUCT_TYPE = 'BOP'
-                                     AND C.PRODUCTION_TYPE = 'MET'
-                                     AND A.MET_FILM = 'Y'), 0)    MET_COST,
-                         0         IO_RATIO
-                    FROM XXSRF.PFB_CONTRI_JUMBO_RECIPE_DATA A
-                   WHERE     TRUNC (TRX_DATE) = TRUNC (LAST_DAY ( :P_DATE))
-                         AND ORGANIZATION_ID = :P_ORGANIZATION_ID
-                  UNION ALL
-                  SELECT ORGANIZATION_ID,
-                         FG_ITEM_CODE,
-                         JUMBO_ITEM_CODE,
-                         NULL                            MET_FILM,
-                         TRUNC (LAST_DAY ( :P_DATE))     TRX_DATE,
-                         0                               RM_CUR_VALUE,
-                         0                               HOMOPOLYMER_COST,
-                         0                               MET_COST,
-                         IO_RATIO
-                    FROM (SELECT A.*,
-                                 RANK ()
-                                     OVER (
-                                         PARTITION BY ORGANIZATION_ID,
-                                                      FG_ITEM_CODE,
-                                                      JUMBO_ITEM_CODE
-                                         ORDER BY TRX_DATE DESC)    RN
-                            FROM XXSRF.PFB_CONTRI_IORATIO_DATA A
-                           WHERE     TRUNC (TRX_DATE) <= TRUNC (LAST_DAY ( :P_DATE))
-                                 AND ORGANIZATION_ID = :P_ORGANIZATION_ID)
-                   WHERE RN = 1)
-        GROUP BY ORGANIZATION_ID,
-                 FG_ITEM_CODE,
-                 JUMBO_ITEM_CODE,
-                 TRX_DATE) X,
-       (SELECT ORGANIZATION_ID,
-               TRUNC (LAST_DAY ( :P_DATE))     TRX_DATE,
-               PRODUCT_TYPE,
-               ITEM_CODE,
-               MICRON,
-               POWER_COST,
-               FUEL_AND_WATER,
-               PRODUCTION_CONSUMABLE,
-               THROUGHPUT
-          FROM (SELECT A.*,
-                       RANK ()
-                           OVER (PARTITION BY A.ORGANIZATION_ID, A.ITEM_CODE
-                                 ORDER BY TRX_DATE DESC)    RN
-                  FROM XXSRF.PFB_CONTRI_VC_COST_DATA A
-                 WHERE     A.ORGANIZATION_ID = :P_ORGANIZATION_ID
-                       AND TRUNC (A.TRX_DATE) <= TRUNC (LAST_DAY ( :P_DATE))
-                       AND A.PRODUCT_TYPE = 'BOP'
-                       AND A.PRODUCTION_TYPE = 'JUMBO')
-         WHERE RN = 1) Y
- WHERE     X.ORGANIZATION_ID = Y.ORGANIZATION_ID
-       AND X.TRX_DATE = Y.TRX_DATE
-       AND X.JUMBO_ITEM_CODE = Y.ITEM_CODE) EXPENSE
- WHERE     SALE.ORGANIZATION_ID = EXPENSE.ORGANIZATION_ID(+)
-       AND SALE.PRODUCT_TYPE = EXPENSE.PRODUCT_TYPE(+)
-       AND SALE.TRX_DATE = EXPENSE.TRX_DATE(+)
-       AND SALE.ITEM_CODE = EXPENSE.FG_ITEM_CODE(+);
-------------------------------------------------------------------------------------------------------------------
+                            WHEN rctt.org_id = 1397
+                            THEN
+                               'Domestic Sales'
+                            ELSE
+                               NVL (ctt.attribute10, 'XX')
+                         END)
+ GROUP BY rctlo.customer_trx_id, rctl.inventory_item_id
+ UNION ALL
+ SELECT rctlo.customer_trx_id,
+        rctl.inventory_item_id,
+        ABS(SUM(rctl.extended_amount
+                * NVL (rcta.EXCHANGE_RATE, 1)))
+           basic_amt,
+        ABS (SUM (rctl.quantity_credited)) quantity,
+        0 tax_amount
+ FROM ra_cust_trx_types_all ctt,
+      ra_customer_trx_all rcta,
+      ra_customer_trx_lines_all rctl,
+      ra_customer_trx_lines_all rctlo,
+      oe_order_lines_all ool,
+      (SELECT TRUNC (MAX (gl_date)) gl_date,
+              customer_trx_id
+       FROM ra_cust_trx_line_gl_dist_all
+       WHERE 1 = 1
+             AND account_class = 'REC'
+             AND org_id = :P_ORG_ID
+             AND :P_ORG_ID <> 87
+             AND latest_rec_flag = 'Y'
+       GROUP BY customer_trx_id) gp
+WHERE 1 = 1
+      AND rcta.cust_trx_type_id = ctt.cust_trx_type_id
+      AND rcta.org_id = rctl.org_id
+      AND rcta.customer_trx_id = rctl.customer_trx_id
+      AND rcta.customer_trx_id = gp.customer_trx_id
+      AND TO_CHAR (gp.gl_date, 'MON-RR') = UPPER (:P_PERIOD)
+      AND rctl.line_type = 'LINE'
+      AND rcta.org_id = :P_ORG_ID
+      AND :P_ORG_ID <> 87
+      AND ctt.TYPE = 'CM'
+      AND rctl.previous_customer_trx_id IS NULL
+      AND ool.return_attribute1 = rctlo.customer_trx_id
+      AND ool.return_attribute2 = rctlo.customer_trx_line_id
+      AND ool.line_id = rctl.interface_line_attribute6
+      AND EXISTS
+            (SELECT 1
+             FROM ra_cust_trx_types_all rctt
+             WHERE NVL (rctt.attribute8, 'N') = 'Y'
+                   AND rctt.credit_memo_type_id = ctt.cust_trx_type_id
+                   AND rctt.org_id = ctt.org_id
+                   AND NVL (rctt.attribute10, 'XX') =
+                          CASE
+                             WHEN rctt.org_id = 1397
+                             THEN
+                                'Domestic Sales'
+                             ELSE
+                                NVL (ctt.attribute10, 'XX')
+                          END)
+ GROUP BY rctlo.customer_trx_id, rctl.inventory_item_id) cm
+WHERE inv.customer_trx_id = cm.customer_trx_id(+)
+     AND inv.inventory_item_id = cm.inventory_item_id(+)
+GROUP BY inv.bsv,
+        inv.organization_code,
+        inv.product_segment,
+        inv.period_name,
+        inv.mis_category,
+        inv.market_type,
+        inv.item 
