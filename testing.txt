@@ -1,0 +1,492 @@
+ok so i want you to give me a table code i will form custom. ok so my requirment is 
+1. I want you to see my code in there i have multiple queries.
+2. I want you to see queries XXSRF.PFB_CONTRI_JUMBO_RECIPE_DATA of recipe ,
+   XXSRF.PFB_CONTRI_PRODUCTION_DATA this for production and 
+   XXSRF.PFB_CONTRI_IORATIO_DATA this for io ratio.
+3. Now my requirement is in the above three tables we are using data table 
+   data like recipe many where again n again and other data also.
+4. Now my idea or i want you to give me code i want that i should make a stagging table or custom table that will be
+   containing all of the data for three and i'll be using it from that only.
+5. Analyze proeperly and them give me custom table to form out of all these 
+   three which i can use.
+6. you can take that particualr coloumn for once in new table which is common 
+
+---------------------------
+INSERT INTO XXSRF.PFB_CONTRI_JUMBO_RECIPE_DATA (ORGANIZATION_ID,
+                                                RECIPE_NO,
+                                                RECIPE_VERSION,
+                                                FORMULA_NO,
+                                                FORMULA_VERS,
+                                                FG_ITEM_CODE,
+                                                JUMBO_ITEM_CODE,
+                                                MET_FILM,
+                                                TRX_DATE,
+                                                PERCENTAGE,
+                                                RM_CUR_VALUE,
+                                                HOMOPOLYMER_COST)
+    WITH
+        TAB
+        AS
+            (SELECT GR.CREATION_ORGANIZATION_ID     ORGANIZATION_ID,
+                    GR.RECIPE_ID,
+                    GR.RECIPE_NO,
+                    GR.RECIPE_VERSION,
+                    GT.ROUTING_NO,
+                    FM.FORMULA_NO,
+                    FM.FORMULA_VERS,
+                    FD.LINE_TYPE,
+                    IM.INVENTORY_ITEM_ID,
+                    IM1.SEGMENT1                    FG_ITEM_CODE,
+                    IM.SEGMENT1                     RM_ITEM_CODE,
+                    IM.DESCRIPTION,
+                    INVENTORY.SEGMENT1              INV_SEGMENT1,
+                    INVENTORY.SEGMENT2              INV_SEGMENT2,
+                    INVENTORY.SEGMENT3              INV_SEGMENT3,
+                    INVENTORY.SEGMENT4              INV_SEGMENT4,
+                    FD.QTY                          PLAN_QTY,
+                    FD.SCRAP_FACTOR
+               FROM APPS.GMD_RECIPES                GR,
+                    APPS.GMD_ROUTINGS               GT,
+                    APPS.FM_FORM_MST                FM,
+                    APPS.FM_MATL_DTL                FD,
+                    APPS.MTL_SYSTEM_ITEMS_B         IM,
+                    APPS.GMD_RECIPE_VALIDITY_RULES  GRV,
+                    APPS.MTL_SYSTEM_ITEMS_B         IM1,
+                    (SELECT MIC.ORGANIZATION_ID,
+                            MIC.INVENTORY_ITEM_ID,
+                            MCV.SEGMENT1,
+                            MCV.SEGMENT2,
+                            MCV.SEGMENT3,
+                            MCV.SEGMENT4
+                       FROM APPS.MTL_ITEM_CATEGORIES  MIC,
+                            APPS.MTL_CATEGORY_SETS    MCS,
+                            APPS.MTL_CATEGORIES_VL    MCV
+                      WHERE     MIC.ORGANIZATION_ID = :P_ORGANIZATION_ID --(112, 240, 1036)
+                            AND MIC.CATEGORY_SET_ID = MCS.CATEGORY_SET_ID
+                            AND MIC.CATEGORY_ID = MCV.CATEGORY_ID
+                            AND MCS.CATEGORY_SET_NAME = 'Inventory') INVENTORY
+              WHERE     FM.FORMULA_ID = FD.FORMULA_ID
+                    AND GR.FORMULA_ID = FM.FORMULA_ID
+                    AND GT.ROUTING_ID = GR.ROUTING_ID
+                    AND GR.CREATION_ORGANIZATION_ID IN (1036)
+                    AND GR.RECIPE_STATUS = 700
+                    AND FM.FORMULA_STATUS = 700
+                    AND GRV.VALIDITY_RULE_STATUS = 700
+                    AND IM.ORGANIZATION_ID = FD.ORGANIZATION_ID
+                    AND IM.INVENTORY_ITEM_ID = FD.INVENTORY_ITEM_ID
+                    AND GR.RECIPE_ID = GRV.RECIPE_ID
+                    AND GR.CREATION_ORGANIZATION_ID = GRV.ORGANIZATION_ID
+                    AND GRV.ORGANIZATION_ID = IM1.ORGANIZATION_ID
+                    AND GRV.INVENTORY_ITEM_ID = IM1.INVENTORY_ITEM_ID
+                    AND INVENTORY.ORGANIZATION_ID = IM.ORGANIZATION_ID
+                    AND INVENTORY.INVENTORY_ITEM_ID = IM.INVENTORY_ITEM_ID
+                    AND GT.ROUTING_NO LIKE '%J%'
+                    AND FD.LINE_TYPE = '-1')
+      SELECT ORGANIZATION_ID,
+             RECIPE_NO,
+             RECIPE_VERSION,
+             FORMULA_NO,
+             FORMULA_VERS,
+             FG_ITEM_CODE,
+             JUMBO_ITEM_CODE,
+             MET_FILM,
+             TRX_DATE,
+             PERCENTAGE,
+             SUM (RM_CUR_VALUE)     RM_CUR_VALUE,
+             HOMOPOLYMER_COST
+        --       XXSRF.FN_PFB_GET_ITEM_COST (ORGANIZATION_ID, TRX_DATE, 'BOP', 'NHP') HOMOPOLYMER_COST
+        FROM (SELECT A.ORGANIZATION_ID,
+                     B.RECIPE_NO,
+                     B.RECIPE_VERSION,
+                     B.FORMULA_NO,
+                     B.FORMULA_VERS,
+                     A.FG_ITEM_CODE,
+                     A.JUMBO_ITEM_CODE,
+                     A.MET_FILM,
+                     B.RM_ITEM_CODE,
+                     B.INVENTORY_ITEM_ID                                           RM_INVENTORY_ITEM_ID,
+                     B.DESCRIPTION,
+                     B.INV_SEGMENT1,
+                     B.INV_SEGMENT2,
+                     B.INV_SEGMENT3,
+                     B.INV_SEGMENT4,
+                     TRUNC (LAST_DAY ( :P_DATE))                                   TRX_DATE,
+                     B.PLAN_QTY,
+                     A.PERCENTAGE,
+                     C.CUR_COST,
+                     CASE WHEN B.RM_ITEM_CODE LIKE '%RE%CHIP%'
+                          THEN ROUND(D.ITEM_COST, 2)
+                          ELSE ROUND(NVL (C.CUR_COST, D.ITEM_COST), 2)
+                     END  RM_CUR_COST,
+                     ROUND(B.PLAN_QTY * A.PERCENTAGE * CASE WHEN B.RM_ITEM_CODE LIKE '%RE%CHIP%'
+                                                            THEN D.ITEM_COST
+                                                            ELSE NVL (C.CUR_COST, D.ITEM_COST)
+                                                       END, 2) RM_CUR_VALUE,
+                     D.ITEM_COST HOMOPOLYMER_COST
+                FROM XXSRF.PFB_CONTRI_JUMBO_FG_ITEM_MAP A,
+                     (SELECT *
+                        FROM TAB X
+                       WHERE     1 = 1     --B.FG_ITEM_CODE = 'NCL28-TI/A09_J'
+                             AND RECIPE_ID =
+                                 (SELECT MAX (RECIPE_ID)
+                                    FROM TAB Y
+                                   WHERE X.ORGANIZATION_ID = Y.ORGANIZATION_ID
+                                     AND X.FG_ITEM_CODE = Y.FG_ITEM_CODE)) B,
+                     (  SELECT MSI.INVENTORY_ITEM_ID,
+                               MSI.SEGMENT1,
+                               OOD.ORGANIZATION_ID,
+                               SUM (CMPNT_COST)     CUR_COST
+                          FROM APPS.CM_CMPT_DTL_VW            C,
+                               APPS.MTL_PARAMETERS            MTP,
+                               APPS.ORG_ORGANIZATION_DEFINITIONS OOD,
+                               APPS.MTL_SYSTEM_ITEMS          MSI
+                         WHERE     1 = 1
+                               AND C.ORGANIZATION_ID = MTP.ORGANIZATION_ID
+                               AND MTP.ORGANIZATION_ID = OOD.ORGANIZATION_ID
+                               AND MSI.ORGANIZATION_ID = MTP.ORGANIZATION_ID
+                               AND MSI.INVENTORY_ITEM_ID = C.INVENTORY_ITEM_ID
+                               AND PROCESS_ENABLED_FLAG = 'Y'
+                               AND OOD.OPERATING_UNIT = :P_ORG_ID
+                               AND MTP.ORGANIZATION_ID = NVL ( :P_ORGANIZATION_ID, MTP.ORGANIZATION_ID)
+                               AND (DELETE_MARK = 0)
+                               AND PERIOD_ID =
+                                   (SELECT PERIOD_ID
+                                      FROM APPS.GMF_PERIOD_STATUSES A,
+                                           APPS.HR_OPERATING_UNITS B
+                                     WHERE     B.ORGANIZATION_ID = :P_ORG_ID
+                                           AND A.LEGAL_ENTITY_ID = B.DEFAULT_LEGAL_CONTEXT_ID
+                                           AND COST_TYPE_ID IN
+                                                   (SELECT COST_TYPE_ID
+                                                      FROM APPS.CM_MTHD_MST
+                                                     WHERE COST_MTHD_CODE = 'PMAC')
+                                           AND TO_CHAR (START_DATE, 'MON-RR') = TO_CHAR ( :P_DATE, 'MON-RR'))
+                               AND (SELECT COST_MTHD_CODE
+                                      FROM APPS.CM_MTHD_MST
+                                     WHERE COST_TYPE_ID = C.COST_TYPE_ID) IN
+                                       (SELECT TAG
+                                          FROM APPS.FND_LOOKUP_VALUES
+                                         WHERE     LOOKUP_TYPE IN 'XXSRF_11I_R12_MAPPING_LOOKUP'
+                                               AND ATTRIBUTE1 = 'SRF PFB Location Wise Stock Summary with Values(Raw Material)'
+                                               AND MEANING IN ('COST-MTHD-1', 'COST-MTHD-2'))
+                      GROUP BY MSI.INVENTORY_ITEM_ID,
+                               MSI.SEGMENT1,
+                               OOD.ORGANIZATION_ID) C,
+                     (SELECT * 
+                        FROM XXSRF.PFB_CONTRI_ITEM_AVG_COST
+                       WHERE ORGANIZATION_ID = :P_ORGANIZATION_ID
+                         AND TRX_DATE = TRUNC (LAST_DAY ( :P_DATE))
+                         AND ITEM_CATEGORY = 'NHP') D         
+               WHERE     A.ORGANIZATION_ID = B.ORGANIZATION_ID
+                     AND A.JUMBO_ITEM_CODE = B.FG_ITEM_CODE
+                     AND B.ORGANIZATION_ID = C.ORGANIZATION_ID(+)
+                     AND B.INVENTORY_ITEM_ID = C.INVENTORY_ITEM_ID(+)
+                     AND A.ORGANIZATION_ID = D.ORGANIZATION_ID
+                     AND D.TRX_DATE = TRUNC (LAST_DAY (:P_DATE))
+                     AND D.PRODUCT_TYPE = B.INV_SEGMENT2)
+    GROUP BY ORGANIZATION_ID,
+             RECIPE_NO,
+             RECIPE_VERSION,
+             FORMULA_NO,
+             FORMULA_VERS,
+             FG_ITEM_CODE,
+             JUMBO_ITEM_CODE,
+             MET_FILM,
+             TRX_DATE,
+             PERCENTAGE,
+             HOMOPOLYMER_COST;
+----------------------------------------
+INSERT INTO XXSRF.PFB_CONTRI_PRODUCTION_DATA (ORGANIZATION_ID,
+                                              PROD_TYPE,
+                                              TRX_DATE,
+                                              PRODUCT_TYPE,
+                                              ITEM_CODE,
+                                              MICRON,
+                                              PROD_TIME,
+                                              PROD_QTY) 
+  SELECT ORGANIZATION_ID,
+         'JUMBO'                              PROD_TYPE,
+         LAST_DAY (TRX_DATE)                  TRX_DATE,
+         PRODUCT_TYPE,
+         ITEM_CODE,
+         MICRON,
+         ROUND (SUM (PRODUCTION_TIME), 2)     PRODUCTION_TIME,
+         SUM (TRX_QTY)                        TRX_QTY
+    FROM (  SELECT GBH.ORGANIZATION_ID,
+                   GBH.BATCH_NO,
+                   TO_DATE (GBH.ATTRIBUTE15, 'YYYY/MM/DD HH24:MI:SS') START_DATE,
+                   TO_DATE (GBH.ATTRIBUTE16, 'YYYY/MM/DD HH24:MI:SS') END_DATE,
+                   (TO_DATE (GBH.ATTRIBUTE16, 'YYYY/MM/DD HH24:MI:SS') - TO_DATE (GBH.ATTRIBUTE15, 'YYYY/MM/DD HH24:MI:SS')) * 24 PRODUCTION_TIME,
+                   DECODE (GBH.ORGANIZATION_ID, 112, 'PET',
+                                                280, 'BOP',
+                                                1640, 'PET',
+                                                NVL (INVENTORY.SEGMENT2, 'PET')) PRODUCT_TYPE,
+                   ICMB.SEGMENT1 ITEM_CODE,
+                   TO_NUMBER (ICMB.ATTRIBUTE1) MICRON,
+                   MTLN.GRADE_CODE,
+                   TRUNC (MMT.TRANSACTION_DATE) TRX_DATE,
+                   SUM (MMT.TRANSACTION_QUANTITY) TRX_QTY
+              FROM APPS.GME_MATERIAL_DETAILS      GMD,
+                   APPS.GME_BATCH_HEADER          GBH,
+                   APPS.FM_ROUT_HDR               FRH,
+                   APPS.MTL_SYSTEM_ITEMS_B        ICMB,
+                   APPS.MTL_MATERIAL_TRANSACTIONS MMT,
+                   APPS.MTL_TRANSACTION_LOT_NUMBERS MTLN,
+                   (SELECT MIC.ORGANIZATION_ID,
+                           MIC.INVENTORY_ITEM_ID,
+                           MCV.SEGMENT2
+                      FROM APPS.MTL_ITEM_CATEGORIES MIC,
+                           APPS.MTL_CATEGORY_SETS MCS,
+                           APPS.MTL_CATEGORIES_VL MCV
+                     WHERE     MIC.ORGANIZATION_ID = :P_ORGANIZATION_ID --(112, 240, 1036)
+                           AND MIC.CATEGORY_SET_ID = MCS.CATEGORY_SET_ID
+                           AND MIC.CATEGORY_ID = MCV.CATEGORY_ID
+                           AND MCS.CATEGORY_SET_NAME = 'Inventory') INVENTORY
+             WHERE     TRUNC (MMT.TRANSACTION_DATE) BETWEEN TRUNC (:P_DATE_FROM, 'MON') AND :P_DATE
+                   AND LINE_TYPE = 1
+                   AND GMD.INVENTORY_ITEM_ID = ICMB.INVENTORY_ITEM_ID
+                   AND GMD.ORGANIZATION_ID = ICMB.ORGANIZATION_ID
+                   AND GMD.BATCH_ID = GBH.BATCH_ID
+                   AND GBH.ORGANIZATION_ID = FRH.OWNER_ORGANIZATION_ID
+                   AND GBH.ROUTING_ID = FRH.ROUTING_ID
+                   AND GBH.ORGANIZATION_ID = :P_ORGANIZATION_ID
+                   AND FRH.ROUTING_NO LIKE '%J%'
+                   AND ITEM_TYPE = 'FILM'
+                   AND GBH.ORGANIZATION_ID = MMT.ORGANIZATION_ID
+                   AND GMD.MATERIAL_DETAIL_ID = MMT.TRX_SOURCE_LINE_ID
+                   AND GMD.BATCH_ID = MMT.TRANSACTION_SOURCE_ID
+                   AND GMD.INVENTORY_ITEM_ID = MMT.INVENTORY_ITEM_ID
+                   AND MMT.TRANSACTION_SOURCE_TYPE_ID = 5
+                   AND MMT.TRANSACTION_TYPE_ID IN (44, 17)
+                   AND MMT.ORGANIZATION_ID = MTLN.ORGANIZATION_ID
+                   AND MTLN.TRANSACTION_ID = MMT.TRANSACTION_ID
+                   AND MMT.INVENTORY_ITEM_ID = MTLN.INVENTORY_ITEM_ID
+                   AND INVENTORY.ORGANIZATION_ID = ICMB.ORGANIZATION_ID
+                   AND INVENTORY.INVENTORY_ITEM_ID = ICMB.INVENTORY_ITEM_ID
+                   AND INVENTORY.SEGMENT2 = 'BOP'
+          GROUP BY GBH.ORGANIZATION_ID,
+                   GBH.BATCH_NO,
+                   TO_DATE (GBH.ATTRIBUTE15, 'YYYY/MM/DD HH24:MI:SS'),
+                   TO_DATE (GBH.ATTRIBUTE16, 'YYYY/MM/DD HH24:MI:SS'),
+                   DECODE (GBH.ORGANIZATION_ID, 112, 'PET',
+                                                280, 'BOP',
+                                                1640, 'PET',
+                                                NVL (INVENTORY.SEGMENT2, 'PET')),
+                   ICMB.SEGMENT1,
+                   TO_NUMBER (ICMB.ATTRIBUTE1),
+                   MTLN.GRADE_CODE,
+                   TRUNC (MMT.TRANSACTION_DATE))
+GROUP BY ORGANIZATION_ID,
+         PRODUCT_TYPE,
+         ITEM_CODE,
+         MICRON,
+         LAST_DAY (TRX_DATE)
+UNION ALL
+  SELECT ORGANIZATION_ID,
+         'MET'                                PROD_TYPE,
+         LAST_DAY (TRX_DATE)                  TRX_DATE,
+         PRODUCT_TYPE,
+         ITEM_CODE,
+         MICRON,
+         TO_NUMBER(TO_CHAR(LAST_DAY (TRX_DATE), 'DD')) * 24 PRODUCTION_TIME,  
+--         ROUND (SUM (PRODUCTION_TIME), 2)     PRODUCTION_TIME,
+         SUM (TRX_QTY)                        TRX_QTY
+    FROM (  SELECT GBH.ORGANIZATION_ID,
+                   GBH.BATCH_NO,
+                   TO_DATE (GBH.ATTRIBUTE15, 'YYYY/MM/DD HH24:MI:SS') START_DATE,
+                   TO_DATE (GBH.ATTRIBUTE16, 'YYYY/MM/DD HH24:MI:SS') END_DATE,
+                   (TO_DATE (GBH.ATTRIBUTE16, 'YYYY/MM/DD HH24:MI:SS') - TO_DATE (GBH.ATTRIBUTE15, 'YYYY/MM/DD HH24:MI:SS')) * 24 PRODUCTION_TIME,
+                   DECODE (GBH.ORGANIZATION_ID, 112, 'PET',
+                                                280, 'BOP',
+                                                1640, 'PET',
+                                                NVL (INVENTORY.SEGMENT2, 'PET')) PRODUCT_TYPE,
+                   ICMB.SEGMENT1 ITEM_CODE,
+                   TO_NUMBER (ICMB.ATTRIBUTE1) MICRON,
+                   MTLN.GRADE_CODE,
+                   TRUNC (MMT.TRANSACTION_DATE) TRX_DATE,
+                   SUM (MMT.TRANSACTION_QUANTITY) TRX_QTY
+              FROM APPS.GME_MATERIAL_DETAILS      GMD,
+                   APPS.GME_BATCH_HEADER          GBH,
+                   APPS.FM_ROUT_HDR               FRH,
+                   APPS.MTL_SYSTEM_ITEMS_B        ICMB,
+                   APPS.MTL_MATERIAL_TRANSACTIONS MMT,
+                   APPS.MTL_TRANSACTION_LOT_NUMBERS MTLN,
+                   (SELECT MIC.ORGANIZATION_ID,
+                           MIC.INVENTORY_ITEM_ID,
+                           MCV.SEGMENT2
+                      FROM APPS.MTL_ITEM_CATEGORIES MIC,
+                           APPS.MTL_CATEGORY_SETS MCS,
+                           APPS.MTL_CATEGORIES_VL MCV
+                     WHERE     MIC.ORGANIZATION_ID = :P_ORGANIZATION_ID --(112, 240, 1036)
+                           AND MIC.CATEGORY_SET_ID = MCS.CATEGORY_SET_ID
+                           AND MIC.CATEGORY_ID = MCV.CATEGORY_ID
+                           AND MCS.CATEGORY_SET_NAME = 'Inventory') INVENTORY
+             WHERE     TRUNC (MMT.TRANSACTION_DATE) BETWEEN TRUNC (:P_DATE_FROM, 'MON') AND :P_DATE
+                   AND LINE_TYPE = 1
+                   AND GMD.INVENTORY_ITEM_ID = ICMB.INVENTORY_ITEM_ID
+                   AND GMD.ORGANIZATION_ID = ICMB.ORGANIZATION_ID
+                   AND GMD.BATCH_ID = GBH.BATCH_ID
+                   AND GBH.ORGANIZATION_ID = FRH.OWNER_ORGANIZATION_ID
+                   AND GBH.ROUTING_ID = FRH.ROUTING_ID
+                   AND GBH.ORGANIZATION_ID = :P_ORGANIZATION_ID
+                   AND FRH.ROUTING_NO LIKE '%M%'
+                   AND ICMB.SEGMENT1 LIKE '%_M'
+                   AND ITEM_TYPE = 'FILM'
+                   AND GBH.ORGANIZATION_ID = MMT.ORGANIZATION_ID
+                   AND GMD.MATERIAL_DETAIL_ID = MMT.TRX_SOURCE_LINE_ID
+                   AND GMD.BATCH_ID = MMT.TRANSACTION_SOURCE_ID
+                   AND GMD.INVENTORY_ITEM_ID = MMT.INVENTORY_ITEM_ID
+                   AND MMT.TRANSACTION_SOURCE_TYPE_ID = 5
+                   AND MMT.TRANSACTION_TYPE_ID IN (44, 17)
+                   AND MMT.ORGANIZATION_ID = MTLN.ORGANIZATION_ID
+                   AND MTLN.TRANSACTION_ID = MMT.TRANSACTION_ID
+                   AND MMT.INVENTORY_ITEM_ID = MTLN.INVENTORY_ITEM_ID
+                   AND INVENTORY.ORGANIZATION_ID = ICMB.ORGANIZATION_ID
+                   AND INVENTORY.INVENTORY_ITEM_ID = ICMB.INVENTORY_ITEM_ID
+                   AND INVENTORY.SEGMENT2 = 'BOP'
+          GROUP BY GBH.ORGANIZATION_ID,
+                   GBH.BATCH_NO,
+                   TO_DATE (GBH.ATTRIBUTE15, 'YYYY/MM/DD HH24:MI:SS'),
+                   TO_DATE (GBH.ATTRIBUTE16, 'YYYY/MM/DD HH24:MI:SS'),
+                   DECODE (GBH.ORGANIZATION_ID, 112, 'PET',
+                                                280, 'BOP',
+                                                1640, 'PET',
+                                                NVL (INVENTORY.SEGMENT2, 'PET')),
+                   ICMB.SEGMENT1,
+                   TO_NUMBER (ICMB.ATTRIBUTE1),
+                   MTLN.GRADE_CODE,
+                   TRUNC (MMT.TRANSACTION_DATE))
+GROUP BY ORGANIZATION_ID,
+         PRODUCT_TYPE,
+         ITEM_CODE,
+         MICRON,
+         LAST_DAY (TRX_DATE);
+-------------------------------------------
+INSERT INTO XXSRF.PFB_CONTRI_IORATIO_DATA (ORGANIZATION_ID,
+                                           JUMBO_ITEM_CODE,
+                                           FG_ITEM_CODE,
+                                           TRX_DATE,
+                                           INPUT_QTY,
+                                           OUTPUT_QTY,
+                                           BYPRODUCT_QTY,
+                                           IO_RATIO)
+    WITH
+        TAB
+        AS
+            (  SELECT GBH.ORGANIZATION_ID,
+                      GBH.BATCH_NO,
+                      MMT.TRANSACTION_DATE,
+                      ICMB.INVENTORY_ITEM_ID,
+                      ICMB.SEGMENT1                               ITEM_CODE,
+                      GMD.LINE_TYPE,
+                      ICMB.DESCRIPTION,
+                      SUBINVENTORY_CODE,
+                      ICMB.ITEM_TYPE,
+                      INV.SEGMENT1,
+                      INV.SEGMENT2,
+                      INV.SEGMENT3,
+                      INV.SEGMENT4,
+                      TRUNC (LAST_DAY (MMT.TRANSACTION_DATE))     TRX_DATE,
+                      SUM (ABS (MMT.TRANSACTION_QUANTITY))        TRX_QTY
+                 FROM APPS.GME_MATERIAL_DETAILS     GMD,
+                      APPS.GME_BATCH_HEADER         GBH,
+                      APPS.FM_ROUT_HDR              FRH,
+                      APPS.MTL_SYSTEM_ITEMS_B       ICMB,
+                      APPS.MTL_MATERIAL_TRANSACTIONS MMT,
+                      (SELECT MIC.ORGANIZATION_ID,
+                              MIC.INVENTORY_ITEM_ID,
+                              MIC.CATEGORY_ID,
+                              MCV.SEGMENT1,
+                              MCV.SEGMENT2,
+                              MCV.SEGMENT3,
+                              MCV.SEGMENT4
+                         FROM APPS.MTL_ITEM_CATEGORIES MIC,
+                              APPS.MTL_CATEGORY_SETS  MCS,
+                              APPS.MTL_CATEGORIES_VL  MCV
+                        WHERE     MIC.ORGANIZATION_ID = :P_ORGANIZATION_ID
+                              AND MIC.CATEGORY_SET_ID = MCS.CATEGORY_SET_ID
+                              AND MIC.CATEGORY_ID = MCV.CATEGORY_ID
+                              AND MCS.CATEGORY_SET_NAME = 'Inventory') INV
+                WHERE     TRUNC (MMT.TRANSACTION_DATE) BETWEEN TRUNC (
+                                                                   :P_DATE_FROM)
+                                                           AND TRUNC ( :P_DATE)
+                      --AND GMD.LINE_TYPE IN (-1, 1)
+                      AND GMD.INVENTORY_ITEM_ID = ICMB.INVENTORY_ITEM_ID
+                      AND GMD.ORGANIZATION_ID = ICMB.ORGANIZATION_ID
+                      AND GMD.BATCH_ID = GBH.BATCH_ID
+                      AND GBH.ROUTING_ID = FRH.ROUTING_ID
+                      AND GBH.ORGANIZATION_ID = :P_ORGANIZATION_ID
+                      AND FRH.ROUTING_NO LIKE '%J%'
+                      AND INV.SEGMENT2 = 'BOP'
+                      AND GMD.MATERIAL_DETAIL_ID = MMT.TRX_SOURCE_LINE_ID
+					  AND GBH.BATCH_STATUS IN (3, 4)
+                      --             AND MMT.TRANSACTION_TYPE_ID IN (35, 43)
+                      AND GMD.BATCH_ID = MMT.TRANSACTION_SOURCE_ID
+                      AND MMT.TRANSACTION_SOURCE_TYPE_ID = 5
+                      AND ICMB.ORGANIZATION_ID = INV.ORGANIZATION_ID
+                      AND ICMB.INVENTORY_ITEM_ID = INV.INVENTORY_ITEM_ID
+             --                  AND GBH.BATCH_NO = 382209
+             GROUP BY GBH.ORGANIZATION_ID,
+                      GBH.BATCH_NO,
+                      MMT.TRANSACTION_DATE,
+                      ICMB.INVENTORY_ITEM_ID,
+                      ICMB.SEGMENT1,
+                      GMD.LINE_TYPE,
+                      ICMB.DESCRIPTION,
+                      SUBINVENTORY_CODE,
+                      ICMB.ITEM_TYPE,
+                      TRUNC (LAST_DAY (MMT.TRANSACTION_DATE)),
+                      INV.SEGMENT1,
+                      INV.SEGMENT2,
+                      INV.SEGMENT3,
+                      INV.SEGMENT4)
+      SELECT ORGANIZATION_ID,
+             JUMBO_ITEM_CODE,
+             FG_ITEM_CODE,
+             TRX_DATE,
+             SUM (INPUT_QTY)                                               INPUT_QTY,
+             SUM (OUTPUT_QTY)                                              OUTPUT_QTY,
+             SUM (BYPRODUCT_QTY)                                           BYPRODUCT_QTY,
+             SUM (INPUT_QTY) / (SUM (OUTPUT_QTY) + SUM (BYPRODUCT_QTY))    IO_RATIO
+        FROM (SELECT A.ORGANIZATION_ID,
+                     A.BATCH_NO,
+                     B.TRX_DATE,
+                     B.JUMBO_ITEM_CODE,
+                     B.FG_ITEM_CODE,
+                     A.INPUT_QTY,
+                     B.OUTPUT_QTY,
+                     NVL (C.BYPRODUCT_QTY, 0)     BYPRODUCT_QTY
+                FROM (  SELECT ORGANIZATION_ID, BATCH_NO, SUM (TRX_QTY) INPUT_QTY
+                          FROM TAB
+                         WHERE LINE_TYPE = '-1'
+                      GROUP BY ORGANIZATION_ID, BATCH_NO) A,
+                     (  SELECT X.ORGANIZATION_ID,
+                               X.BATCH_NO,
+                               X.ITEM_CODE         JUMBO_ITEM_CODE,
+                               Y.FG_ITEM_CODE,
+                               X.TRX_DATE,
+                               SUM (X.TRX_QTY)     OUTPUT_QTY
+                          FROM TAB X, XXSRF.PFB_CONTRI_JUMBO_FG_ITEM_MAP Y
+                         WHERE     X.LINE_TYPE = '1'
+                               AND X.ORGANIZATION_ID = Y.ORGANIZATION_ID(+)
+                               AND X.ITEM_CODE = Y.JUMBO_ITEM_CODE(+)
+                      GROUP BY X.ORGANIZATION_ID,
+                               X.BATCH_NO,
+                               X.ITEM_CODE,
+                               X.TRX_DATE,
+                               Y.FG_ITEM_CODE) B,
+                     (  SELECT ORGANIZATION_ID,
+                               BATCH_NO,
+                               SUM (TRX_QTY)     BYPRODUCT_QTY
+                          FROM TAB
+                         WHERE     LINE_TYPE = '2'
+                               AND ITEM_CODE <> 'BOP-EVOH-RE-FILM'
+                      GROUP BY ORGANIZATION_ID, BATCH_NO) C
+               WHERE     A.ORGANIZATION_ID = B.ORGANIZATION_ID
+                     AND A.BATCH_NO = B.BATCH_NO
+                     AND A.ORGANIZATION_ID = C.ORGANIZATION_ID(+)
+                     AND A.BATCH_NO = C.BATCH_NO(+))
+    GROUP BY ORGANIZATION_ID,
+             JUMBO_ITEM_CODE,
+             FG_ITEM_CODE,
+             TRX_DATE;
+
