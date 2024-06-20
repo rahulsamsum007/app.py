@@ -1,11 +1,3 @@
-Based on your requirements, I'll rewrite the SQL query to reflect the necessary changes. Here are the adjustments:
-1. Renaming columns as specified.
-2. Adding parameters for `ORGANIZATION_ID` and `TRX_DATE`.
-3. Removing the `NVL` function and simplifying the join conditions.
-
-Here's the updated SQL query:
-
-```sql
 SELECT
     A.ORGANIZATION_ID,
     CASE
@@ -38,8 +30,8 @@ FROM
         LINE_TYPE,
         TRX_DATE,
         BATCH_NO,
-        ITEM_CODE) A
-JOIN
+        ITEM_CODE) A,
+
     (SELECT
         ORGANIZATION_ID,
         PROD_TYPE,
@@ -59,23 +51,12 @@ JOIN
         TRX_DATE,
         BATCH_NO,
         ITEM_CODE) B
-ON A.ORGANIZATION_ID = B.ORGANIZATION_ID
-AND A.TRX_DATE = B.TRX_DATE
-AND A.BATCH_NO = B.BATCH_NO
 WHERE
-    A.ORGANIZATION_ID = :organization_id
-AND A.TRX_DATE = :trx_date
+ A.ORGANIZATION_ID = :ORGANIZATION_ID
+AND A.TRX_DATE = :TRX_DATE
+AND A.BATCH_NO = B.BATCH_NO
 ORDER BY
     A.ORGANIZATION_ID,
     A.TRX_DATE,
     A.BATCH_NO,
     A.LINE_TYPE;
-```
-
-In this updated query:
-1. The columns `A.ITEM_CODE` and `B.ITEM_CODE` are renamed to `PRODUCT_ITEM_CODE` and `INPUT_ITEM_CODE`, respectively.
-2. The `TOTAL_QTY` columns are renamed to `PRODUCT_QTY` and `INPUT_QTY`.
-3. The `ORGANIZATION_ID` and `TRX_DATE` are parameterized as `:organization_id` and `:trx_date`.
-4. The `NVL` function is removed, as it is not required based on your input.
-
-Ensure to replace the `:organization_id` and `:trx_date` parameters with actual values when running the query.
