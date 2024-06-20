@@ -1,78 +1,81 @@
+Based on your requirements, I'll rewrite the SQL query to reflect the necessary changes. Here are the adjustments:
+1. Renaming columns as specified.
+2. Adding parameters for `ORGANIZATION_ID` and `TRX_DATE`.
+3. Removing the `NVL` function and simplifying the join conditions.
+
+Here's the updated SQL query:
+
+```sql
 SELECT
-    ORGANIZATION_ID,
+    A.ORGANIZATION_ID,
     CASE
-        WHEN PROD_TYPE LIKE '%J%' THEN 'JUMBO'
-        WHEN PROD_TYPE LIKE '%M%' THEN 'MET'
+        WHEN A.PROD_TYPE LIKE '%J%' THEN 'JUMBO'
+        WHEN A.PROD_TYPE LIKE '%M%' THEN 'MET'
     END AS PROD_TYPE,
-    LINE_TYPE,
-    TRX_DATE,
-    BATCH_NO,
-    ITEM_CODE,
-    ABS(TOTAL_QTY) AS TOTAL_QTY
+    A.LINE_TYPE,
+    A.TRX_DATE,
+    A.BATCH_NO,
+    A.ITEM_CODE AS PRODUCT_ITEM_CODE,
+    B.ITEM_CODE AS INPUT_ITEM_CODE,
+    ABS(A.TOTAL_QTY) AS PRODUCT_QTY,
+    ABS(B.TOTAL_QTY) AS INPUT_QTY
 FROM
     (SELECT
-        NVL(A.ORGANIZATION_ID, B.ORGANIZATION_ID) AS ORGANIZATION_ID,
-        NVL(A.PROD_TYPE, B.PROD_TYPE) AS PROD_TYPE,
-        NVL(A.LINE_TYPE, B.LINE_TYPE) AS LINE_TYPE,
-        NVL(A.TRX_DATE, B.TRX_DATE) AS TRX_DATE,
-        NVL(A.BATCH_NO, B.BATCH_NO) AS BATCH_NO,
-        NVL(A.ITEM_CODE, B.ITEM_CODE) AS ITEM_CODE,
-        NVL(A.TOTAL_QTY, 0) - NVL(B.TOTAL_QTY, 0) AS TOTAL_QTY
+        ORGANIZATION_ID,
+        PROD_TYPE,
+        LINE_TYPE,
+        TRX_DATE,
+        BATCH_NO,
+        ITEM_CODE,
+        SUM(TRX_QTY) AS TOTAL_QTY
     FROM
-        (SELECT
-            ORGANIZATION_ID,
-            PROD_TYPE,
-            LINE_TYPE,
-            TRX_DATE,
-            BATCH_NO,
-            ITEM_CODE,
-            SUM(TRX_QTY) AS TOTAL_QTY
-        FROM
-            XXSRF.JUMBO_MET_TRANSACTIONS
-        WHERE
-            LINE_TYPE = 1
-        GROUP BY
-            ORGANIZATION_ID,
-            PROD_TYPE,
-            LINE_TYPE,
-            TRX_DATE,
-            BATCH_NO,
-            ITEM_CODE) A,
-        (SELECT
-            ORGANIZATION_ID,
-            PROD_TYPE,
-            LINE_TYPE,
-            TRX_DATE,
-            BATCH_NO,
-            ITEM_CODE,
-            SUM(TRX_QTY) AS TOTAL_QTY
-        FROM
-            XXSRF.JUMBO_MET_TRANSACTIONS
-        WHERE
-            LINE_TYPE = -1
-        GROUP BY
-            ORGANIZATION_ID,
-            PROD_TYPE,
-            LINE_TYPE,
-            TRX_DATE,
-            BATCH_NO,
-            ITEM_CODE) B
+        XXSRF.JUMBO_MET_TRANSACTIONS
     WHERE
-        A.ORGANIZATION_ID = B.ORGANIZATION_ID
-        AND A.TRX_DATE = B.TRX_DATE
-        AND A.BATCH_NO = B.BATCH_NO)
+        LINE_TYPE = 1
+    GROUP BY
+        ORGANIZATION_ID,
+        PROD_TYPE,
+        LINE_TYPE,
+        TRX_DATE,
+        BATCH_NO,
+        ITEM_CODE) A
+JOIN
+    (SELECT
+        ORGANIZATION_ID,
+        PROD_TYPE,
+        LINE_TYPE,
+        TRX_DATE,
+        BATCH_NO,
+        ITEM_CODE,
+        SUM(TRX_QTY) AS TOTAL_QTY
+    FROM
+        XXSRF.JUMBO_MET_TRANSACTIONS
+    WHERE
+        LINE_TYPE = -1
+    GROUP BY
+        ORGANIZATION_ID,
+        PROD_TYPE,
+        LINE_TYPE,
+        TRX_DATE,
+        BATCH_NO,
+        ITEM_CODE) B
+ON A.ORGANIZATION_ID = B.ORGANIZATION_ID
+AND A.TRX_DATE = B.TRX_DATE
+AND A.BATCH_NO = B.BATCH_NO
+WHERE
+    A.ORGANIZATION_ID = :organization_id
+AND A.TRX_DATE = :trx_date
 ORDER BY
-    ORGANIZATION_ID,
-    TRX_DATE,
-    BATCH_NO,
-    LINE_TYPE;
+    A.ORGANIZATION_ID,
+    A.TRX_DATE,
+    A.BATCH_NO,
+    A.LINE_TYPE;
+```
 
+In this updated query:
+1. The columns `A.ITEM_CODE` and `B.ITEM_CODE` are renamed to `PRODUCT_ITEM_CODE` and `INPUT_ITEM_CODE`, respectively.
+2. The `TOTAL_QTY` columns are renamed to `PRODUCT_QTY` and `INPUT_QTY`.
+3. The `ORGANIZATION_ID` and `TRX_DATE` are parameterized as `:organization_id` and `:trx_date`.
+4. The `NVL` function is removed, as it is not required based on your input.
 
-
-    1.A.ITEM_CODE WILL BE PRODUCT_ITEM_CODE,
-B.ITEM_CODE WILL BE INPUT_ITEM_CODE, 
-A.TOTAL_QTY WIL BE PRODUCT_QTY.
-AND B.TOTAL_QTY WILL BE INPUT_QTY 
-2.SELECT NORMALLY AND PASS PARAMETER RUNTIME 
-LIKE THIS : FOR ORGANIZATION_ID AND TRX_DATE
-3. YOU CAN REMOVE NVL NOW KEEP A NORMAL SINCE ITS NOT REQUIRE
+Ensure to replace the `:organization_id` and `:trx_date` parameters with actual values when running the query.
