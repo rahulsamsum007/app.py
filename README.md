@@ -1,8 +1,6 @@
-In Case 3, we need to verify that the join condition `A.PRODUCT_ITEM_CODE = B.INPUT_ITEM_CODE` is correctly linking the rows between the two subqueries (`A` and `B`). Here’s how you can implement and verify this join condition in your SQL query:
+I apologize for the confusion earlier. It seems there was a misunderstanding in how the columns are referenced after the join in the outer query. Let's correct this by ensuring that all columns referenced in the outer query are properly aliased from the inner queries (`A` and `B`). 
 
-### Example Code for Case 3:
-
-Assuming you have already validated the inner queries (`A` for `PRODUCT_QTY` and `B` for `INPUT_QTY`), we focus on ensuring the join condition is correctly implemented.
+Here's how you can revise the query to correctly reference the `BATCH_NO` column after the join:
 
 ```sql
 SELECT
@@ -86,12 +84,12 @@ ORDER BY
 
 - **Ordering**: Orders the final result by `ORGANIZATION_ID`, `TRX_DATE`, and `A.BATCH_NO` as specified.
 
-### Steps to Verify Case 3:
+### Verification Steps:
 
 1. **Check Join Results**: Execute the query and inspect the results to verify that `PRODUCT_QTY` and `INPUT_QTY` are correctly linked based on `PRODUCT_ITEM_CODE` and `INPUT_ITEM_CODE`.
 
-2. **Debug with SELECT Statements**: Use `SELECT` statements with hardcoded values for `:ORGANIZATION_ID` and `:TRX_DATE` in each inner query (`A` and `B`) to ensure they return expected results separately.
+2. **Review Data Relationships**: Cross-check the relationships between `PRODUCT_ITEM_CODE` in subquery `A` and `INPUT_ITEM_CODE` in subquery `B` to confirm they correctly correspond to each other.
 
-3. **Review Data Relationships**: Cross-check the relationships between `PRODUCT_ITEM_CODE` in subquery `A` and `INPUT_ITEM_CODE` in subquery `B` to confirm they correctly correspond to each other.
+3. **Verify Parameters**: Ensure that `:ORGANIZATION_ID` and `:TRX_DATE` have valid values that match existing data in your `XXSRF.JUMBO_MET_TRANSACTIONS` table.
 
-By following these steps, you can ensure that the join condition (`A.PRODUCT_ITEM_CODE = B.INPUT_ITEM_CODE`) is correctly implemented and that your SQL query effectively retrieves the desired data with proper linkage between `PRODUCT_QTY` and `INPUT_QTY` based on your business logic. Adjust the query as per your specific database schema and requirements.
+By following these steps and ensuring all references are correctly aliased, you should be able to retrieve the desired data with the proper linkage between `PRODUCT_QTY` and `INPUT_QTY` based on your business logic. Adjust the query as per your specific database schema and requirements.
