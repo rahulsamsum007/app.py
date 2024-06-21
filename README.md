@@ -1,92 +1,97 @@
-To troubleshoot why your full query isn't returning any data despite the inner queries working fine, you can check the following cases. These cases will help you systematically debug and identify potential issues with your SQL query and data:
+In Case 3, we need to verify that the join condition `A.PRODUCT_ITEM_CODE = B.INPUT_ITEM_CODE` is correctly linking the rows between the two subqueries (`A` and `B`). Here’s how you can implement and verify this join condition in your SQL query:
 
-### Case 1: Verify Parameter Values
-Ensure that the parameters `:ORGANIZATION_ID` and `:TRX_DATE` have valid values that match existing data in your `XXSRF.JUMBO_MET_TRANSACTIONS` table.
+### Example Code for Case 3:
 
-Example:
-- `:ORGANIZATION_ID` should be a valid organization ID that exists in your data.
-- `:TRX_DATE` should be a date for which there are transactions in your database.
+Assuming you have already validated the inner queries (`A` for `PRODUCT_QTY` and `B` for `INPUT_QTY`), we focus on ensuring the join condition is correctly implemented.
 
-### Case 2: Check INNER Queries Separately
-Run each inner query separately with hardcoded values for `:ORGANIZATION_ID` and `:TRX_DATE` to verify they return expected results.
-
-Example for Subquery A (PRODUCT_QTY):
 ```sql
 SELECT
     ORGANIZATION_ID,
+    'JUMBO' AS PROD_TYPE,
     TRX_DATE,
-    BATCH_NO,
-    ITEM_CODE AS PRODUCT_ITEM_CODE,
-    SUM(TRX_QTY) AS PRODUCT_QTY
-FROM
-    XXSRF.JUMBO_MET_TRANSACTIONS
-WHERE
-    LINE_TYPE = 1
-    AND PROD_TYPE LIKE '%JUMBO%'
-    AND ORGANIZATION_ID = 1036  -- Replace with actual value
-    AND TRX_DATE = TO_DATE('31-Mar-24', 'DD-Mon-YY')  -- Replace with actual value
-GROUP BY
+    A.BATCH_NO,
+    A.PRODUCT_ITEM_CODE,
+    B.INPUT_ITEM_CODE,
+    A.PRODUCT_QTY,
+    B.INPUT_QTY
+FROM (
+    SELECT
+        A.ORGANIZATION_ID,
+        A.TRX_DATE,
+        A.BATCH_NO,
+        A.PRODUCT_ITEM_CODE,
+        B.INPUT_ITEM_CODE,
+        A.PRODUCT_QTY,
+        B.INPUT_QTY,
+        ROW_NUMBER() OVER (PARTITION BY A.BATCH_NO, A.PRODUCT_ITEM_CODE ORDER BY A.TRX_DATE) AS rn
+    FROM (
+        -- Subquery A for PRODUCT_QTY
+        SELECT
+            ORGANIZATION_ID,
+            TRX_DATE,
+            BATCH_NO,
+            ITEM_CODE AS PRODUCT_ITEM_CODE,
+            SUM(TRX_QTY) AS PRODUCT_QTY
+        FROM
+            XXSRF.JUMBO_MET_TRANSACTIONS
+        WHERE
+            LINE_TYPE = 1
+            AND PROD_TYPE LIKE '%JUMBO%'
+            AND ORGANIZATION_ID = :ORGANIZATION_ID
+            AND TRX_DATE = :TRX_DATE
+        GROUP BY
+            ORGANIZATION_ID,
+            TRX_DATE,
+            BATCH_NO,
+            ITEM_CODE
+    ) A
+    JOIN (
+        -- Subquery B for INPUT_QTY
+        SELECT
+            ORGANIZATION_ID,
+            TRX_DATE,
+            BATCH_NO,
+            ITEM_CODE AS INPUT_ITEM_CODE,
+            SUM(TRX_QTY) AS INPUT_QTY
+        FROM
+            XXSRF.JUMBO_MET_TRANSACTIONS
+        WHERE
+            LINE_TYPE = -1
+            AND PROD_TYPE LIKE '%JUMBO%'
+            AND ORGANIZATION_ID = :ORGANIZATION_ID
+            AND TRX_DATE = :TRX_DATE
+        GROUP BY
+            ORGANIZATION_ID,
+            TRX_DATE,
+            BATCH_NO,
+            ITEM_CODE
+    ) B ON A.BATCH_NO = B.BATCH_NO AND A.PRODUCT_ITEM_CODE = B.INPUT_ITEM_CODE  -- Join condition
+) C
+WHERE rn = 1
+ORDER BY
     ORGANIZATION_ID,
     TRX_DATE,
-    BATCH_NO,
-    ITEM_CODE;
+    A.BATCH_NO;
 ```
 
-Example for Subquery B (INPUT_QTY):
-```sql
-SELECT
-    ORGANIZATION_ID,
-    TRX_DATE,
-    BATCH_NO,
-    ITEM_CODE AS INPUT_ITEM_CODE,
-    SUM(TRX_QTY) AS INPUT_QTY
-FROM
-    XXSRF.JUMBO_MET_TRANSACTIONS
-WHERE
-    LINE_TYPE = -1
-    AND PROD_TYPE LIKE '%JUMBO%'
-    AND ORGANIZATION_ID = 1036  -- Replace with actual value
-    AND TRX_DATE = TO_DATE('31-Mar-24', 'DD-Mon-YY')  -- Replace with actual value
-GROUP BY
-    ORGANIZATION_ID,
-    TRX_DATE,
-    BATCH_NO,
-    ITEM_CODE;
-```
+### Explanation:
 
-Ensure these queries return rows of data. If they don't return any rows, then there might be no data in your table that matches the specified criteria.
+- **Subquery `A`**: Calculates `PRODUCT_QTY` grouped by `ORGANIZATION_ID`, `TRX_DATE`, `BATCH_NO`, and `PRODUCT_ITEM_CODE`.
 
-### Case 3: Verify Join Conditions
-Check if the join condition `A.PRODUCT_ITEM_CODE = B.INPUT_ITEM_CODE` correctly links the rows between the two subqueries. 
+- **Subquery `B`**: Calculates `INPUT_QTY` grouped by `ORGANIZATION_ID`, `TRX_DATE`, `BATCH_NO`, and `INPUT_ITEM_CODE`.
 
-Example:
-- Ensure that `INPUT_ITEM_CODE` in subquery `B` corresponds to `PRODUCT_ITEM_CODE` in subquery `A` as per your data model.
+- **Join Condition (`ON` Clause)**: Ensures that `A.PRODUCT_ITEM_CODE` matches `B.INPUT_ITEM_CODE` and `A.BATCH_NO` matches `B.BATCH_NO`. This links the `PRODUCT_QTY` with the corresponding `INPUT_QTY` for each `BATCH_NO` and `PRODUCT_ITEM_CODE`.
 
-### Case 4: Review Filtering Conditions
-Review the filtering conditions `LINE_TYPE = 1`, `LINE_TYPE = -1`, and `PROD_TYPE LIKE '%JUMBO%'` to ensure they accurately filter the data as expected.
+- **Outer Query (`C`)**: Selects columns from the joined result (`A` and `B` joined on `BATCH_NO` and `INPUT_ITEM_CODE`) where `rn = 1` to fetch only one row per `BATCH_NO` and `PRODUCT_ITEM_CODE` combination.
 
-Example:
-- Verify if there are transactions with `LINE_TYPE` 1 and -1 for `PROD_TYPE` matching 'JUMBO'.
+- **Ordering**: Orders the final result by `ORGANIZATION_ID`, `TRX_DATE`, and `A.BATCH_NO` as specified.
 
-### Case 5: Validate Data Existence
-Double-check if there are actual rows in your `XXSRF.JUMBO_MET_TRANSACTIONS` table that satisfy the combined conditions of `LINE_TYPE`, `PROD_TYPE`, `ORGANIZATION_ID`, and `TRX_DATE`.
+### Steps to Verify Case 3:
 
-### Case 6: Debugging with Limited Rows
-To simplify debugging, you can limit the number of rows returned by adding `ROWNUM <= 10` (or equivalent based on your database) at the end of each inner query to check for a small subset of data.
+1. **Check Join Results**: Execute the query and inspect the results to verify that `PRODUCT_QTY` and `INPUT_QTY` are correctly linked based on `PRODUCT_ITEM_CODE` and `INPUT_ITEM_CODE`.
 
-Example:
-```sql
-SELECT * FROM (
-    -- Your inner query here
-) WHERE ROWNUM <= 10;
-```
+2. **Debug with SELECT Statements**: Use `SELECT` statements with hardcoded values for `:ORGANIZATION_ID` and `:TRX_DATE` in each inner query (`A` and `B`) to ensure they return expected results separately.
 
-This will help you verify if the issue is related to the amount of data being processed or if it persists even with a limited dataset.
+3. **Review Data Relationships**: Cross-check the relationships between `PRODUCT_ITEM_CODE` in subquery `A` and `INPUT_ITEM_CODE` in subquery `B` to confirm they correctly correspond to each other.
 
-### Case 7: Check Permissions and Schema
-Ensure that the user executing the query has the necessary permissions to access the `XXSRF.JUMBO_MET_TRANSACTIONS` table and perform the operations (SELECT, GROUP BY, etc.) required by your query.
-
-### Case 8: Execute Full Query with Known Data
-Once you've verified each of the above cases and ensured that your inner queries are returning expected results, execute the full query with known data values for `:ORGANIZATION_ID` and `:TRX_DATE` that you have previously validated.
-
-By systematically checking these cases, you should be able to identify where the issue lies and resolve why your full query isn't returning the expected data. Adjustments may be needed based on the specifics of your database schema and the actual data available.
+By following these steps, you can ensure that the join condition (`A.PRODUCT_ITEM_CODE = B.INPUT_ITEM_CODE`) is correctly implemented and that your SQL query effectively retrieves the desired data with proper linkage between `PRODUCT_QTY` and `INPUT_QTY` based on your business logic. Adjust the query as per your specific database schema and requirements.
