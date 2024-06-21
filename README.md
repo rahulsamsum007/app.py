@@ -1,21 +1,17 @@
-If the inner queries (`A` and `B`) are returning data correctly but the full query isn't producing any results, there could be a few reasons for this issue. Let's troubleshoot step by step to ensure the full query runs correctly:
+To troubleshoot why your full query isn't returning any data despite the inner queries working fine, you can check the following cases. These cases will help you systematically debug and identify potential issues with your SQL query and data:
 
-### Troubleshooting Steps:
+### Case 1: Verify Parameter Values
+Ensure that the parameters `:ORGANIZATION_ID` and `:TRX_DATE` have valid values that match existing data in your `XXSRF.JUMBO_MET_TRANSACTIONS` table.
 
-1. **Verify Parameters**: Ensure that the parameters `:ORGANIZATION_ID` and `:TRX_DATE` are correctly set and have values that match existing data in your `XXSRF.JUMBO_MET_TRANSACTIONS` table. If these parameters are not set correctly or don't match any data, the outer query won't return any results.
+Example:
+- `:ORGANIZATION_ID` should be a valid organization ID that exists in your data.
+- `:TRX_DATE` should be a date for which there are transactions in your database.
 
-2. **Check Join Condition**: Confirm that the join condition `A.PRODUCT_ITEM_CODE = B.INPUT_ITEM_CODE` is correct and effectively links the rows from subquery `A` (which calculates `PRODUCT_QTY`) with those from subquery `B` (which calculates `INPUT_QTY`). If there are no matching `INPUT_ITEM_CODE` values in `B` for `PRODUCT_ITEM_CODE` values in `A`, it could result in no rows being returned in the outer query.
+### Case 2: Check INNER Queries Separately
+Run each inner query separately with hardcoded values for `:ORGANIZATION_ID` and `:TRX_DATE` to verify they return expected results.
 
-3. **Ensure Data Availability**: Double-check if there are actually rows in your `XXSRF.JUMBO_MET_TRANSACTIONS` table that satisfy the conditions for `LINE_TYPE`, `PROD_TYPE`, `ORGANIZATION_ID`, and `TRX_DATE` used in both subqueries (`A` and `B`). If there's no data that matches these conditions, the outer query will naturally return no results.
-
-4. **Review Filtering Conditions**: Review the conditions `LINE_TYPE = 1` and `LINE_TYPE = -1`, along with `PROD_TYPE LIKE '%JUMBO%'`, to ensure they accurately filter the data as expected. If these conditions are too restrictive or not matching any data, it could lead to an empty result set.
-
-5. **Debug with SELECT Statements**: Before running the entire query, try running the inner queries (`A` and `B`) separately with hard-coded values for `:ORGANIZATION_ID` and `:TRX_DATE` to verify they return expected results. This can help isolate whether the issue lies in the inner queries or in the outer query structure.
-
-### Example of Debugging with SELECT Statements:
-
+Example for Subquery A (PRODUCT_QTY):
 ```sql
--- Subquery A: Check for PRODUCT_QTY
 SELECT
     ORGANIZATION_ID,
     TRX_DATE,
@@ -27,15 +23,17 @@ FROM
 WHERE
     LINE_TYPE = 1
     AND PROD_TYPE LIKE '%JUMBO%'
-    AND ORGANIZATION_ID = :ORGANIZATION_ID  -- Replace with actual value
-    AND TRX_DATE = :TRX_DATE  -- Replace with actual value
+    AND ORGANIZATION_ID = 1036  -- Replace with actual value
+    AND TRX_DATE = TO_DATE('31-Mar-24', 'DD-Mon-YY')  -- Replace with actual value
 GROUP BY
     ORGANIZATION_ID,
     TRX_DATE,
     BATCH_NO,
     ITEM_CODE;
+```
 
--- Subquery B: Check for INPUT_QTY
+Example for Subquery B (INPUT_QTY):
+```sql
 SELECT
     ORGANIZATION_ID,
     TRX_DATE,
@@ -47,8 +45,8 @@ FROM
 WHERE
     LINE_TYPE = -1
     AND PROD_TYPE LIKE '%JUMBO%'
-    AND ORGANIZATION_ID = :ORGANIZATION_ID  -- Replace with actual value
-    AND TRX_DATE = :TRX_DATE  -- Replace with actual value
+    AND ORGANIZATION_ID = 1036  -- Replace with actual value
+    AND TRX_DATE = TO_DATE('31-Mar-24', 'DD-Mon-YY')  -- Replace with actual value
 GROUP BY
     ORGANIZATION_ID,
     TRX_DATE,
@@ -56,30 +54,39 @@ GROUP BY
     ITEM_CODE;
 ```
 
-Run these SELECT statements with actual values substituted for `:ORGANIZATION_ID` and `:TRX_DATE` to see if they return expected results. If they do, then the issue might lie in the outer query or its parameters.
+Ensure these queries return rows of data. If they don't return any rows, then there might be no data in your table that matches the specified criteria.
 
-### Final Check for Full Query:
+### Case 3: Verify Join Conditions
+Check if the join condition `A.PRODUCT_ITEM_CODE = B.INPUT_ITEM_CODE` correctly links the rows between the two subqueries. 
 
-Once you've verified that the inner queries are returning data as expected, use those verified parameters in your full query:
+Example:
+- Ensure that `INPUT_ITEM_CODE` in subquery `B` corresponds to `PRODUCT_ITEM_CODE` in subquery `A` as per your data model.
 
+### Case 4: Review Filtering Conditions
+Review the filtering conditions `LINE_TYPE = 1`, `LINE_TYPE = -1`, and `PROD_TYPE LIKE '%JUMBO%'` to ensure they accurately filter the data as expected.
+
+Example:
+- Verify if there are transactions with `LINE_TYPE` 1 and -1 for `PROD_TYPE` matching 'JUMBO'.
+
+### Case 5: Validate Data Existence
+Double-check if there are actual rows in your `XXSRF.JUMBO_MET_TRANSACTIONS` table that satisfy the combined conditions of `LINE_TYPE`, `PROD_TYPE`, `ORGANIZATION_ID`, and `TRX_DATE`.
+
+### Case 6: Debugging with Limited Rows
+To simplify debugging, you can limit the number of rows returned by adding `ROWNUM <= 10` (or equivalent based on your database) at the end of each inner query to check for a small subset of data.
+
+Example:
 ```sql
-SELECT
-    ORGANIZATION_ID,
-    'JUMBO' AS PROD_TYPE,
-    TRX_DATE,
-    BATCH_NO,
-    PRODUCT_ITEM_CODE,
-    INPUT_ITEM_CODE,
-    PRODUCT_QTY,
-    INPUT_QTY
-FROM (
-    -- Your existing full query here
-) C
-WHERE rn = 1
-ORDER BY
-    ORGANIZATION_ID,
-    TRX_DATE,
-    BATCH_NO;
+SELECT * FROM (
+    -- Your inner query here
+) WHERE ROWNUM <= 10;
 ```
 
-Ensure `rn = 1` condition in the outer query (`WHERE rn = 1`) is appropriate based on your data model and requirements. This should help you pinpoint where the issue might be occurring and ensure your query fetches the expected results.
+This will help you verify if the issue is related to the amount of data being processed or if it persists even with a limited dataset.
+
+### Case 7: Check Permissions and Schema
+Ensure that the user executing the query has the necessary permissions to access the `XXSRF.JUMBO_MET_TRANSACTIONS` table and perform the operations (SELECT, GROUP BY, etc.) required by your query.
+
+### Case 8: Execute Full Query with Known Data
+Once you've verified each of the above cases and ensured that your inner queries are returning expected results, execute the full query with known data values for `:ORGANIZATION_ID` and `:TRX_DATE` that you have previously validated.
+
+By systematically checking these cases, you should be able to identify where the issue lies and resolve why your full query isn't returning the expected data. Adjustments may be needed based on the specifics of your database schema and the actual data available.
