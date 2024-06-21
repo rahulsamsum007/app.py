@@ -1,13 +1,4 @@
-It seems like you want to modify the query to achieve two main goals:
-
-1. Retrieve only one `PRODUCT_QTY` for each unique `PRODUCT_ITEM_CODE` per `BATCH_NO`.
-2. Summarize the results by displaying each `BATCH_NO` along with `PRODUCT_ITEM_CODE`, one selected `PRODUCT_QTY`, and the total sum of `PRODUCT_QTY` for `PROD_TYPE = 'JUMBO'`.
-
-Here’s how you can approach this:
-
-### Step 1: Adjust the Query to Retrieve One `PRODUCT_QTY` per `PRODUCT_ITEM_CODE`
-
-To achieve this, you can use the `ROW_NUMBER()` window function to select only one row per `PRODUCT_ITEM_CODE` within each `BATCH_NO`. Here’s how you can modify your query:
+Certainly! Here's the corrected and complete SQL query based on your requirements:
 
 ```sql
 SELECT
@@ -41,7 +32,7 @@ FROM (
             XXSRF.JUMBO_MET_TRANSACTIONS
         WHERE
             LINE_TYPE = 1
-            AND PROD_TYPE LIKE '%J%'
+            AND PROD_TYPE LIKE '%JUMBO%'
             AND ORGANIZATION_ID = :ORGANIZATION_ID
             AND TRX_DATE = :TRX_DATE
         GROUP BY
@@ -62,7 +53,7 @@ FROM (
             XXSRF.JUMBO_MET_TRANSACTIONS
         WHERE
             LINE_TYPE = -1
-            AND PROD_TYPE LIKE '%J%'
+            AND PROD_TYPE LIKE '%JUMBO%'
             AND ORGANIZATION_ID = :ORGANIZATION_ID
             AND TRX_DATE = :TRX_DATE
         GROUP BY
@@ -70,7 +61,7 @@ FROM (
             TRX_DATE,
             BATCH_NO,
             ITEM_CODE
-    ) B ON A.BATCH_NO = B.BATCH_NO AND A.PRODUCT_ITEM_CODE = B.ITEM_CODE
+    ) B ON A.BATCH_NO = B.BATCH_NO AND A.PRODUCT_ITEM_CODE = B.INPUT_ITEM_CODE
 ) C
 WHERE rn = 1
 ORDER BY
@@ -79,29 +70,20 @@ ORDER BY
     BATCH_NO;
 ```
 
-### Step 2: Summarize the Results
+### Explanation:
 
-To get the summarized total `PRODUCT_QTY` for each `PRODUCT_ITEM_CODE`, you can further wrap the above query in an outer query that groups by `PRODUCT_ITEM_CODE` and computes the total sum:
+1. **Main Query**: This query retrieves data for `ORGANIZATION_ID`, `PROD_TYPE` as `'JUMBO'`, `TRX_DATE`, `BATCH_NO`, `PRODUCT_ITEM_CODE`, `INPUT_ITEM_CODE`, `PRODUCT_QTY`, and `INPUT_QTY`.
 
-```sql
-SELECT
-    BATCH_NO,
-    PRODUCT_ITEM_CODE,
-    INPUT_ITEM_CODE,
-    PRODUCT_QTY,
-    SUM(PRODUCT_QTY) OVER () AS TOTAL_SUM
-FROM (
-    -- Previous query with modifications
-) D
-GROUP BY
-    BATCH_NO,
-    PRODUCT_ITEM_CODE,
-    INPUT_ITEM_CODE,
-    PRODUCT_QTY
-ORDER BY
-    BATCH_NO;
-```
+2. **Subquery A**: Retrieves `PRODUCT_QTY` from `XXSRF.JUMBO_MET_TRANSACTIONS` where `LINE_TYPE = 1` and `PROD_TYPE` matches `'JUMBO'`. It sums up `TRX_QTY` grouped by `ORGANIZATION_ID`, `TRX_DATE`, `BATCH_NO`, and `ITEM_CODE`.
 
-This final query will give you the desired output with one `PRODUCT_QTY` per `PRODUCT_ITEM_CODE` per `BATCH_NO` and a total sum of `PRODUCT_QTY` across all `BATCH_NO`.
+3. **Subquery B**: Retrieves `INPUT_QTY` from the same table where `LINE_TYPE = -1` and `PROD_TYPE` matches `'JUMBO'`. It also sums up `TRX_QTY` grouped by `ORGANIZATION_ID`, `TRX_DATE`, `BATCH_NO`, and `ITEM_CODE`.
 
-Make sure to replace `XXSRF.JUMBO_MET_TRANSACTIONS` with your actual table name and adjust the placeholders `:ORGANIZATION_ID` and `:TRX_DATE` with your variables or values accordingly. Adjust column names (`ITEM_CODE`, `TRX_QTY`, etc.) as per your actual schema.
+4. **JOIN**: Joins subqueries `A` and `B` on `BATCH_NO` and `PRODUCT_ITEM_CODE = INPUT_ITEM_CODE` to ensure that `INPUT_QTY` corresponds to the correct `PRODUCT_QTY`.
+
+5. **ROW_NUMBER()**: Uses `ROW_NUMBER()` window function partitioned by `BATCH_NO` and `PRODUCT_ITEM_CODE`, ordered by `TRX_DATE`. This ensures that only one row (`rn = 1`) per `BATCH_NO` and `PRODUCT_ITEM_CODE` combination is selected, avoiding duplicates.
+
+6. **Outer Query**: Selects columns from the joined and filtered result (`C`), ensuring that only the rows where `rn = 1` are returned.
+
+7. **ORDER BY**: Orders the final result by `ORGANIZATION_ID`, `TRX_DATE`, and `BATCH_NO` as per your requirement.
+
+Make sure to replace placeholders like `:ORGANIZATION_ID` and `:TRX_DATE` with actual values or variables in your application code. Adjust column names (`XXSRF.JUMBO_MET_TRANSACTIONS`, `TRX_QTY`, etc.) according to your database schema. This query should now work correctly to fetch the desired data as per your specifications.
