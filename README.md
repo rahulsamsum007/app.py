@@ -1,118 +1,107 @@
+It seems like you want to modify the query to achieve two main goals:
+
+1. Retrieve only one `PRODUCT_QTY` for each unique `PRODUCT_ITEM_CODE` per `BATCH_NO`.
+2. Summarize the results by displaying each `BATCH_NO` along with `PRODUCT_ITEM_CODE`, one selected `PRODUCT_QTY`, and the total sum of `PRODUCT_QTY` for `PROD_TYPE = 'JUMBO'`.
+
+Here’s how you can approach this:
+
+### Step 1: Adjust the Query to Retrieve One `PRODUCT_QTY` per `PRODUCT_ITEM_CODE`
+
+To achieve this, you can use the `ROW_NUMBER()` window function to select only one row per `PRODUCT_ITEM_CODE` within each `BATCH_NO`. Here’s how you can modify your query:
+
+```sql
 SELECT
-    A.ORGANIZATION_ID,
-    CASE
-        WHEN A.PROD_TYPE LIKE '%J%' THEN 'JUMBO'
-        WHEN A.PROD_TYPE LIKE '%M%' THEN 'MET'
-    END AS PROD_TYPE,
-    A.TRX_DATE,
-    A.BATCH_NO,
-    A.ITEM_CODE AS PRODUCT_ITEM_CODE,
-    B.ITEM_CODE AS INPUT_ITEM_CODE,
-    ABS(A.TOTAL_QTY) AS PRODUCT_QTY,
-    ABS(B.TOTAL_QTY) AS INPUT_QTY
-FROM
-    (SELECT
-        ORGANIZATION_ID,
-        PROD_TYPE,
-        LINE_TYPE,
-        TRX_DATE,
-        BATCH_NO,
-        ITEM_CODE,
-        SUM(TRX_QTY) AS TOTAL_QTY
-    FROM
-        XXSRF.JUMBO_MET_TRANSACTIONS
-    WHERE
-        LINE_TYPE = 1
-    GROUP BY
-        ORGANIZATION_ID,
-        PROD_TYPE,
-        LINE_TYPE,
-        TRX_DATE,
-        BATCH_NO,
-        ITEM_CODE) A,
-
-    (SELECT
-        ORGANIZATION_ID,
-        PROD_TYPE,
-        LINE_TYPE,
-        TRX_DATE,
-        BATCH_NO,
-        ITEM_CODE,
-        SUM(TRX_QTY) AS TOTAL_QTY
-    FROM
-        XXSRF.JUMBO_MET_TRANSACTIONS
-    WHERE
-        LINE_TYPE = -1
-    GROUP BY
-        ORGANIZATION_ID,
-        PROD_TYPE,
-        LINE_TYPE,
-        TRX_DATE,
-        BATCH_NO,
-        ITEM_CODE) B
-WHERE
- A.ORGANIZATION_ID = :ORGANIZATION_ID
-AND A.TRX_DATE = :TRX_DATE
-AND A.BATCH_NO = B.BATCH_NO
+    ORGANIZATION_ID,
+    'JUMBO' AS PROD_TYPE,
+    TRX_DATE,
+    BATCH_NO,
+    PRODUCT_ITEM_CODE,
+    INPUT_ITEM_CODE,
+    PRODUCT_QTY,
+    INPUT_QTY
+FROM (
+    SELECT
+        A.ORGANIZATION_ID,
+        A.TRX_DATE,
+        A.BATCH_NO,
+        A.PRODUCT_ITEM_CODE,
+        B.INPUT_ITEM_CODE,
+        A.PRODUCT_QTY,
+        B.INPUT_QTY,
+        ROW_NUMBER() OVER (PARTITION BY A.BATCH_NO, A.PRODUCT_ITEM_CODE ORDER BY A.TRX_DATE) AS rn
+    FROM (
+        -- Subquery A for PRODUCT_QTY
+        SELECT
+            ORGANIZATION_ID,
+            TRX_DATE,
+            BATCH_NO,
+            ITEM_CODE AS PRODUCT_ITEM_CODE,
+            SUM(TRX_QTY) AS PRODUCT_QTY
+        FROM
+            XXSRF.JUMBO_MET_TRANSACTIONS
+        WHERE
+            LINE_TYPE = 1
+            AND PROD_TYPE LIKE '%J%'
+            AND ORGANIZATION_ID = :ORGANIZATION_ID
+            AND TRX_DATE = :TRX_DATE
+        GROUP BY
+            ORGANIZATION_ID,
+            TRX_DATE,
+            BATCH_NO,
+            ITEM_CODE
+    ) A
+    JOIN (
+        -- Subquery B for INPUT_QTY
+        SELECT
+            ORGANIZATION_ID,
+            TRX_DATE,
+            BATCH_NO,
+            ITEM_CODE AS INPUT_ITEM_CODE,
+            SUM(TRX_QTY) AS INPUT_QTY
+        FROM
+            XXSRF.JUMBO_MET_TRANSACTIONS
+        WHERE
+            LINE_TYPE = -1
+            AND PROD_TYPE LIKE '%J%'
+            AND ORGANIZATION_ID = :ORGANIZATION_ID
+            AND TRX_DATE = :TRX_DATE
+        GROUP BY
+            ORGANIZATION_ID,
+            TRX_DATE,
+            BATCH_NO,
+            ITEM_CODE
+    ) B ON A.BATCH_NO = B.BATCH_NO AND A.PRODUCT_ITEM_CODE = B.ITEM_CODE
+) C
+WHERE rn = 1
 ORDER BY
-    A.ORGANIZATION_ID,
-    A.TRX_DATE,
-    A.BATCH_NO,
-    A.LINE_TYPE;
+    ORGANIZATION_ID,
+    TRX_DATE,
+    BATCH_NO;
+```
 
-1.i want some changes here is th exaple data
+### Step 2: Summarize the Results
 
+To get the summarized total `PRODUCT_QTY` for each `PRODUCT_ITEM_CODE`, you can further wrap the above query in an outer query that groups by `PRODUCT_ITEM_CODE` and computes the total sum:
 
-ORGANIZATION_ID	PROD_TYPE	TRX_DATE	BATCH_NO	PRODUCT_ITEM_CODE	INPUT_ITEM_CODE	PRODUCT_QTY	INPUT_QTY	PER_KG
-1036	JUMBO	31-Mar-24	435550	SZ18-TI/A01_J	RCPKS407001	5331.308	245	0.046
-1036	JUMBO	31-Mar-24	435550	SZ18-TI/A01_J	RPPHOMOD002	5331.308	5434	1.0193
+```sql
+SELECT
+    BATCH_NO,
+    PRODUCT_ITEM_CODE,
+    INPUT_ITEM_CODE,
+    PRODUCT_QTY,
+    SUM(PRODUCT_QTY) OVER () AS TOTAL_SUM
+FROM (
+    -- Previous query with modifications
+) D
+GROUP BY
+    BATCH_NO,
+    PRODUCT_ITEM_CODE,
+    INPUT_ITEM_CODE,
+    PRODUCT_QTY
+ORDER BY
+    BATCH_NO;
+```
 
-1036	JUMBO	31-Mar-24	435551	SZ18-TI/A01_J	RAB00000037	780.22	4	0.0051
-1036	JUMBO	31-Mar-24	435551	SZ18-TI/A01_J	RCPKS407001	780.22	24	0.0308
+This final query will give you the desired output with one `PRODUCT_QTY` per `PRODUCT_ITEM_CODE` per `BATCH_NO` and a total sum of `PRODUCT_QTY` across all `BATCH_NO`.
 
-1036	JUMBO	31-Mar-24	435558	SZ18-TI/A01_J	RPPHOMOD001	936.581	232	0.2477
-1036	JUMBO	31-Mar-24	435558	SZ18-TI/A01_J	RCPKS407001	936.581	41	0.0438
-
-1036	JUMBO	31-Mar-24	435558	SZ18-TI/A01_J	RPPHOMOD002	5244.221	6274	1.1964
-1036	JUMBO	31-Mar-24	435559	SZ18-TI/A01_J	RCXM7070S01	5244.221	17	0.0032
-
-1036	JUMBO	31-Mar-24	435560	SZ18-TI/A01_J	RPPHOMOD002	9051.348	7506	0.8293
-1036	JUMBO	31-Mar-24	435560	SZ18-TI/A01_J	RPPHOMOD001	9051.348	1422	0.1571
-
-2.SUPOOSE FOR THE ABOVE DATA now it contains for multiple batch_no 435550, 435551 ,435558 ,435558, 435560	but there SZ18-TI/A01_J (PRODUCT_ITEM_CODE)
-are same with PRODUCT_QTY repeating with 435550(BATCH_NO)and SZ18-TI/A01_J (PRODUCT_ITEM_CODE) i want you to pick only one product_qty 
-of same PRODUCT_ITEM_CODE with there unique batch no
-THEN ITS TOTAL SUM I NEED LIKE BELOW I DEMONSTARTED 
-3. do this for jumbo PRODUCT_ITEM_CODE	select distinct PRODUCT_ITEM_CODE and take only 
-one PRODUCT_QTY  and the total sum  					
-								
-			435550	SZ18-TI/A01_J	RPPHOMOD001	5331.308		
-			435551	SZ18-TI/A01_J	RPPHOMOD002	780.22		
-			435558	SZ18-TI/A01_J	RPPHOMOD002	936.581		
-			435559	SZ18-TI/A01_J	RAB00000037	5244.221		
-			435560	SZ18-TI/A01_J	RAB00000037	9051.348		
-					TOTAL	21343.678	
-
-my approach i s this as far as   SELECT ORGANIZATION_ID,
-         PROD_TYPE,
-         LINE_TYPE,
-         TRX_DATE,
-         BATCH_NO,
-         (select distinct ITEM_CODE
-            from XXSRF.JUMBO_MET_TRANSACTIONS b
-   WHERE LINE_TYPE = 1 AND PROD_TYPE = 'JUMBO'
-     and a.organization_id = b.organization_id
-     and a.batch_no = b.batch_no
-     and a.trx_date = b.trx_date
-     and a.PROD_TYPE = b.PROD_TYPE) fg_item_code,
-         ITEM_CODE input_item_code,
-         SUM (TRX_QTY) input_QTY
-    FROM XXSRF.JUMBO_MET_TRANSACTIONS a
-   WHERE LINE_TYPE = -1 AND PROD_TYPE = 'JUMBO'
-     and organization_id = :P_organization_id and trx_date = :P_trx_date
-GROUP BY ORGANIZATION_ID,
-         PROD_TYPE,
-         LINE_TYPE,
-         TRX_DATE,
-         BATCH_NO,
-         ITEM_CODE	
+Make sure to replace `XXSRF.JUMBO_MET_TRANSACTIONS` with your actual table name and adjust the placeholders `:ORGANIZATION_ID` and `:TRX_DATE` with your variables or values accordingly. Adjust column names (`ITEM_CODE`, `TRX_QTY`, etc.) as per your actual schema.
