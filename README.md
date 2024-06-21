@@ -1,95 +1,118 @@
-I apologize for the confusion earlier. It seems there was a misunderstanding in how the columns are referenced after the join in the outer query. Let's correct this by ensuring that all columns referenced in the outer query are properly aliased from the inner queries (`A` and `B`). 
-
-Here's how you can revise the query to correctly reference the `BATCH_NO` column after the join:
-
-```sql
 SELECT
-    ORGANIZATION_ID,
-    'JUMBO' AS PROD_TYPE,
-    TRX_DATE,
+    A.ORGANIZATION_ID,
+    CASE
+        WHEN A.PROD_TYPE LIKE '%J%' THEN 'JUMBO'
+        WHEN A.PROD_TYPE LIKE '%M%' THEN 'MET'
+    END AS PROD_TYPE,
+    A.TRX_DATE,
     A.BATCH_NO,
-    A.PRODUCT_ITEM_CODE,
-    B.INPUT_ITEM_CODE,
-    A.PRODUCT_QTY,
-    B.INPUT_QTY
-FROM (
-    SELECT
-        A.ORGANIZATION_ID,
-        A.TRX_DATE,
-        A.BATCH_NO,
-        A.PRODUCT_ITEM_CODE,
-        B.INPUT_ITEM_CODE,
-        A.PRODUCT_QTY,
-        B.INPUT_QTY,
-        ROW_NUMBER() OVER (PARTITION BY A.BATCH_NO, A.PRODUCT_ITEM_CODE ORDER BY A.TRX_DATE) AS rn
-    FROM (
-        -- Subquery A for PRODUCT_QTY
-        SELECT
-            ORGANIZATION_ID,
-            TRX_DATE,
-            BATCH_NO,
-            ITEM_CODE AS PRODUCT_ITEM_CODE,
-            SUM(TRX_QTY) AS PRODUCT_QTY
-        FROM
-            XXSRF.JUMBO_MET_TRANSACTIONS
-        WHERE
-            LINE_TYPE = 1
-            AND PROD_TYPE LIKE '%JUMBO%'
-            AND ORGANIZATION_ID = :ORGANIZATION_ID
-            AND TRX_DATE = :TRX_DATE
-        GROUP BY
-            ORGANIZATION_ID,
-            TRX_DATE,
-            BATCH_NO,
-            ITEM_CODE
-    ) A
-    JOIN (
-        -- Subquery B for INPUT_QTY
-        SELECT
-            ORGANIZATION_ID,
-            TRX_DATE,
-            BATCH_NO,
-            ITEM_CODE AS INPUT_ITEM_CODE,
-            SUM(TRX_QTY) AS INPUT_QTY
-        FROM
-            XXSRF.JUMBO_MET_TRANSACTIONS
-        WHERE
-            LINE_TYPE = -1
-            AND PROD_TYPE LIKE '%JUMBO%'
-            AND ORGANIZATION_ID = :ORGANIZATION_ID
-            AND TRX_DATE = :TRX_DATE
-        GROUP BY
-            ORGANIZATION_ID,
-            TRX_DATE,
-            BATCH_NO,
-            ITEM_CODE
-    ) B ON A.BATCH_NO = B.BATCH_NO AND A.PRODUCT_ITEM_CODE = B.INPUT_ITEM_CODE  -- Join condition
-) C
-WHERE rn = 1
+    A.ITEM_CODE AS PRODUCT_ITEM_CODE,
+    B.ITEM_CODE AS INPUT_ITEM_CODE,
+    ABS(A.TOTAL_QTY) AS PRODUCT_QTY,
+    ABS(B.TOTAL_QTY) AS INPUT_QTY
+FROM
+    (SELECT
+        ORGANIZATION_ID,
+        PROD_TYPE,
+        LINE_TYPE,
+        TRX_DATE,
+        BATCH_NO,
+        ITEM_CODE,
+        SUM(TRX_QTY) AS TOTAL_QTY
+    FROM
+        XXSRF.JUMBO_MET_TRANSACTIONS
+    WHERE
+        LINE_TYPE = 1
+    GROUP BY
+        ORGANIZATION_ID,
+        PROD_TYPE,
+        LINE_TYPE,
+        TRX_DATE,
+        BATCH_NO,
+        ITEM_CODE) A,
+
+    (SELECT
+        ORGANIZATION_ID,
+        PROD_TYPE,
+        LINE_TYPE,
+        TRX_DATE,
+        BATCH_NO,
+        ITEM_CODE,
+        SUM(TRX_QTY) AS TOTAL_QTY
+    FROM
+        XXSRF.JUMBO_MET_TRANSACTIONS
+    WHERE
+        LINE_TYPE = -1
+    GROUP BY
+        ORGANIZATION_ID,
+        PROD_TYPE,
+        LINE_TYPE,
+        TRX_DATE,
+        BATCH_NO,
+        ITEM_CODE) B
+WHERE
+ A.ORGANIZATION_ID = :ORGANIZATION_ID
+AND A.TRX_DATE = :TRX_DATE
+AND A.BATCH_NO = B.BATCH_NO
 ORDER BY
-    ORGANIZATION_ID,
-    TRX_DATE,
-    A.BATCH_NO;
-```
+    A.ORGANIZATION_ID,
+    A.TRX_DATE,
+    A.BATCH_NO,
+    A.LINE_TYPE;
 
-### Explanation:
+1.i want some changes here is th exaple data
 
-- **Subquery `A`**: Calculates `PRODUCT_QTY` grouped by `ORGANIZATION_ID`, `TRX_DATE`, `BATCH_NO`, and `PRODUCT_ITEM_CODE`.
 
-- **Subquery `B`**: Calculates `INPUT_QTY` grouped by `ORGANIZATION_ID`, `TRX_DATE`, `BATCH_NO`, and `INPUT_ITEM_CODE`.
+ORGANIZATION_ID	PROD_TYPE	TRX_DATE	BATCH_NO	PRODUCT_ITEM_CODE	INPUT_ITEM_CODE	PRODUCT_QTY	INPUT_QTY	PER_KG
+1036	JUMBO	31-Mar-24	435550	SZ18-TI/A01_J	RCPKS407001	5331.308	245	0.046
+1036	JUMBO	31-Mar-24	435550	SZ18-TI/A01_J	RPPHOMOD002	5331.308	5434	1.0193
 
-- **Join Condition (`ON` Clause)**: Ensures that `A.PRODUCT_ITEM_CODE` matches `B.INPUT_ITEM_CODE` and `A.BATCH_NO` matches `B.BATCH_NO`. This links the `PRODUCT_QTY` with the corresponding `INPUT_QTY` for each `BATCH_NO` and `PRODUCT_ITEM_CODE`.
+1036	JUMBO	31-Mar-24	435551	SZ18-TI/A01_J	RAB00000037	780.22	4	0.0051
+1036	JUMBO	31-Mar-24	435551	SZ18-TI/A01_J	RCPKS407001	780.22	24	0.0308
 
-- **Outer Query (`C`)**: Selects columns from the joined result (`A` and `B` joined on `BATCH_NO` and `INPUT_ITEM_CODE`) where `rn = 1` to fetch only one row per `BATCH_NO` and `PRODUCT_ITEM_CODE` combination.
+1036	JUMBO	31-Mar-24	435558	SZ18-TI/A01_J	RPPHOMOD001	936.581	232	0.2477
+1036	JUMBO	31-Mar-24	435558	SZ18-TI/A01_J	RCPKS407001	936.581	41	0.0438
 
-- **Ordering**: Orders the final result by `ORGANIZATION_ID`, `TRX_DATE`, and `A.BATCH_NO` as specified.
+1036	JUMBO	31-Mar-24	435558	SZ18-TI/A01_J	RPPHOMOD002	5244.221	6274	1.1964
+1036	JUMBO	31-Mar-24	435559	SZ18-TI/A01_J	RCXM7070S01	5244.221	17	0.0032
 
-### Verification Steps:
+1036	JUMBO	31-Mar-24	435560	SZ18-TI/A01_J	RPPHOMOD002	9051.348	7506	0.8293
+1036	JUMBO	31-Mar-24	435560	SZ18-TI/A01_J	RPPHOMOD001	9051.348	1422	0.1571
 
-1. **Check Join Results**: Execute the query and inspect the results to verify that `PRODUCT_QTY` and `INPUT_QTY` are correctly linked based on `PRODUCT_ITEM_CODE` and `INPUT_ITEM_CODE`.
+2.SUPOOSE FOR THE ABOVE DATA now it contains for multiple batch_no 435550, 435551 ,435558 ,435558, 435560	but there SZ18-TI/A01_J (PRODUCT_ITEM_CODE)
+are same with PRODUCT_QTY repeating with 435550(BATCH_NO)and SZ18-TI/A01_J (PRODUCT_ITEM_CODE) i want you to pick only one product_qty 
+of same PRODUCT_ITEM_CODE with there unique batch no
+THEN ITS TOTAL SUM I NEED LIKE BELOW I DEMONSTARTED 
+3. do this for jumbo PRODUCT_ITEM_CODE	select distinct PRODUCT_ITEM_CODE and take only 
+one PRODUCT_QTY  and the total sum  					
+								
+			435550	SZ18-TI/A01_J	RPPHOMOD001	5331.308		
+			435551	SZ18-TI/A01_J	RPPHOMOD002	780.22		
+			435558	SZ18-TI/A01_J	RPPHOMOD002	936.581		
+			435559	SZ18-TI/A01_J	RAB00000037	5244.221		
+			435560	SZ18-TI/A01_J	RAB00000037	9051.348		
+					TOTAL	21343.678	
 
-2. **Review Data Relationships**: Cross-check the relationships between `PRODUCT_ITEM_CODE` in subquery `A` and `INPUT_ITEM_CODE` in subquery `B` to confirm they correctly correspond to each other.
-
-3. **Verify Parameters**: Ensure that `:ORGANIZATION_ID` and `:TRX_DATE` have valid values that match existing data in your `XXSRF.JUMBO_MET_TRANSACTIONS` table.
-
-By following these steps and ensuring all references are correctly aliased, you should be able to retrieve the desired data with the proper linkage between `PRODUCT_QTY` and `INPUT_QTY` based on your business logic. Adjust the query as per your specific database schema and requirements.
+my approach i s this as far as   SELECT ORGANIZATION_ID,
+         PROD_TYPE,
+         LINE_TYPE,
+         TRX_DATE,
+         BATCH_NO,
+         (select distinct ITEM_CODE
+            from XXSRF.JUMBO_MET_TRANSACTIONS b
+   WHERE LINE_TYPE = 1 AND PROD_TYPE = 'JUMBO'
+     and a.organization_id = b.organization_id
+     and a.batch_no = b.batch_no
+     and a.trx_date = b.trx_date
+     and a.PROD_TYPE = b.PROD_TYPE) fg_item_code,
+         ITEM_CODE input_item_code,
+         SUM (TRX_QTY) input_QTY
+    FROM XXSRF.JUMBO_MET_TRANSACTIONS a
+   WHERE LINE_TYPE = -1 AND PROD_TYPE = 'JUMBO'
+     and organization_id = :P_organization_id and trx_date = :P_trx_date
+GROUP BY ORGANIZATION_ID,
+         PROD_TYPE,
+         LINE_TYPE,
+         TRX_DATE,
+         BATCH_NO,
+         ITEM_CODE	
