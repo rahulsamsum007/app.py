@@ -1,4 +1,66 @@
-Certainly! Here's the corrected and complete SQL query based on your requirements:
+If the inner queries (`A` and `B`) are returning data correctly but the full query isn't producing any results, there could be a few reasons for this issue. Let's troubleshoot step by step to ensure the full query runs correctly:
+
+### Troubleshooting Steps:
+
+1. **Verify Parameters**: Ensure that the parameters `:ORGANIZATION_ID` and `:TRX_DATE` are correctly set and have values that match existing data in your `XXSRF.JUMBO_MET_TRANSACTIONS` table. If these parameters are not set correctly or don't match any data, the outer query won't return any results.
+
+2. **Check Join Condition**: Confirm that the join condition `A.PRODUCT_ITEM_CODE = B.INPUT_ITEM_CODE` is correct and effectively links the rows from subquery `A` (which calculates `PRODUCT_QTY`) with those from subquery `B` (which calculates `INPUT_QTY`). If there are no matching `INPUT_ITEM_CODE` values in `B` for `PRODUCT_ITEM_CODE` values in `A`, it could result in no rows being returned in the outer query.
+
+3. **Ensure Data Availability**: Double-check if there are actually rows in your `XXSRF.JUMBO_MET_TRANSACTIONS` table that satisfy the conditions for `LINE_TYPE`, `PROD_TYPE`, `ORGANIZATION_ID`, and `TRX_DATE` used in both subqueries (`A` and `B`). If there's no data that matches these conditions, the outer query will naturally return no results.
+
+4. **Review Filtering Conditions**: Review the conditions `LINE_TYPE = 1` and `LINE_TYPE = -1`, along with `PROD_TYPE LIKE '%JUMBO%'`, to ensure they accurately filter the data as expected. If these conditions are too restrictive or not matching any data, it could lead to an empty result set.
+
+5. **Debug with SELECT Statements**: Before running the entire query, try running the inner queries (`A` and `B`) separately with hard-coded values for `:ORGANIZATION_ID` and `:TRX_DATE` to verify they return expected results. This can help isolate whether the issue lies in the inner queries or in the outer query structure.
+
+### Example of Debugging with SELECT Statements:
+
+```sql
+-- Subquery A: Check for PRODUCT_QTY
+SELECT
+    ORGANIZATION_ID,
+    TRX_DATE,
+    BATCH_NO,
+    ITEM_CODE AS PRODUCT_ITEM_CODE,
+    SUM(TRX_QTY) AS PRODUCT_QTY
+FROM
+    XXSRF.JUMBO_MET_TRANSACTIONS
+WHERE
+    LINE_TYPE = 1
+    AND PROD_TYPE LIKE '%JUMBO%'
+    AND ORGANIZATION_ID = :ORGANIZATION_ID  -- Replace with actual value
+    AND TRX_DATE = :TRX_DATE  -- Replace with actual value
+GROUP BY
+    ORGANIZATION_ID,
+    TRX_DATE,
+    BATCH_NO,
+    ITEM_CODE;
+
+-- Subquery B: Check for INPUT_QTY
+SELECT
+    ORGANIZATION_ID,
+    TRX_DATE,
+    BATCH_NO,
+    ITEM_CODE AS INPUT_ITEM_CODE,
+    SUM(TRX_QTY) AS INPUT_QTY
+FROM
+    XXSRF.JUMBO_MET_TRANSACTIONS
+WHERE
+    LINE_TYPE = -1
+    AND PROD_TYPE LIKE '%JUMBO%'
+    AND ORGANIZATION_ID = :ORGANIZATION_ID  -- Replace with actual value
+    AND TRX_DATE = :TRX_DATE  -- Replace with actual value
+GROUP BY
+    ORGANIZATION_ID,
+    TRX_DATE,
+    BATCH_NO,
+    ITEM_CODE;
+```
+
+Run these SELECT statements with actual values substituted for `:ORGANIZATION_ID` and `:TRX_DATE` to see if they return expected results. If they do, then the issue might lie in the outer query or its parameters.
+
+### Final Check for Full Query:
+
+Once you've verified that the inner queries are returning data as expected, use those verified parameters in your full query:
 
 ```sql
 SELECT
@@ -11,57 +73,7 @@ SELECT
     PRODUCT_QTY,
     INPUT_QTY
 FROM (
-    SELECT
-        A.ORGANIZATION_ID,
-        A.TRX_DATE,
-        A.BATCH_NO,
-        A.PRODUCT_ITEM_CODE,
-        B.INPUT_ITEM_CODE,
-        A.PRODUCT_QTY,
-        B.INPUT_QTY,
-        ROW_NUMBER() OVER (PARTITION BY A.BATCH_NO, A.PRODUCT_ITEM_CODE ORDER BY A.TRX_DATE) AS rn
-    FROM (
-        -- Subquery A for PRODUCT_QTY
-        SELECT
-            ORGANIZATION_ID,
-            TRX_DATE,
-            BATCH_NO,
-            ITEM_CODE AS PRODUCT_ITEM_CODE,
-            SUM(TRX_QTY) AS PRODUCT_QTY
-        FROM
-            XXSRF.JUMBO_MET_TRANSACTIONS
-        WHERE
-            LINE_TYPE = 1
-            AND PROD_TYPE LIKE '%JUMBO%'
-            AND ORGANIZATION_ID = :ORGANIZATION_ID
-            AND TRX_DATE = :TRX_DATE
-        GROUP BY
-            ORGANIZATION_ID,
-            TRX_DATE,
-            BATCH_NO,
-            ITEM_CODE
-    ) A
-    JOIN (
-        -- Subquery B for INPUT_QTY
-        SELECT
-            ORGANIZATION_ID,
-            TRX_DATE,
-            BATCH_NO,
-            ITEM_CODE AS INPUT_ITEM_CODE,
-            SUM(TRX_QTY) AS INPUT_QTY
-        FROM
-            XXSRF.JUMBO_MET_TRANSACTIONS
-        WHERE
-            LINE_TYPE = -1
-            AND PROD_TYPE LIKE '%JUMBO%'
-            AND ORGANIZATION_ID = :ORGANIZATION_ID
-            AND TRX_DATE = :TRX_DATE
-        GROUP BY
-            ORGANIZATION_ID,
-            TRX_DATE,
-            BATCH_NO,
-            ITEM_CODE
-    ) B ON A.BATCH_NO = B.BATCH_NO AND A.PRODUCT_ITEM_CODE = B.INPUT_ITEM_CODE
+    -- Your existing full query here
 ) C
 WHERE rn = 1
 ORDER BY
@@ -70,20 +82,4 @@ ORDER BY
     BATCH_NO;
 ```
 
-### Explanation:
-
-1. **Main Query**: This query retrieves data for `ORGANIZATION_ID`, `PROD_TYPE` as `'JUMBO'`, `TRX_DATE`, `BATCH_NO`, `PRODUCT_ITEM_CODE`, `INPUT_ITEM_CODE`, `PRODUCT_QTY`, and `INPUT_QTY`.
-
-2. **Subquery A**: Retrieves `PRODUCT_QTY` from `XXSRF.JUMBO_MET_TRANSACTIONS` where `LINE_TYPE = 1` and `PROD_TYPE` matches `'JUMBO'`. It sums up `TRX_QTY` grouped by `ORGANIZATION_ID`, `TRX_DATE`, `BATCH_NO`, and `ITEM_CODE`.
-
-3. **Subquery B**: Retrieves `INPUT_QTY` from the same table where `LINE_TYPE = -1` and `PROD_TYPE` matches `'JUMBO'`. It also sums up `TRX_QTY` grouped by `ORGANIZATION_ID`, `TRX_DATE`, `BATCH_NO`, and `ITEM_CODE`.
-
-4. **JOIN**: Joins subqueries `A` and `B` on `BATCH_NO` and `PRODUCT_ITEM_CODE = INPUT_ITEM_CODE` to ensure that `INPUT_QTY` corresponds to the correct `PRODUCT_QTY`.
-
-5. **ROW_NUMBER()**: Uses `ROW_NUMBER()` window function partitioned by `BATCH_NO` and `PRODUCT_ITEM_CODE`, ordered by `TRX_DATE`. This ensures that only one row (`rn = 1`) per `BATCH_NO` and `PRODUCT_ITEM_CODE` combination is selected, avoiding duplicates.
-
-6. **Outer Query**: Selects columns from the joined and filtered result (`C`), ensuring that only the rows where `rn = 1` are returned.
-
-7. **ORDER BY**: Orders the final result by `ORGANIZATION_ID`, `TRX_DATE`, and `BATCH_NO` as per your requirement.
-
-Make sure to replace placeholders like `:ORGANIZATION_ID` and `:TRX_DATE` with actual values or variables in your application code. Adjust column names (`XXSRF.JUMBO_MET_TRANSACTIONS`, `TRX_QTY`, etc.) according to your database schema. This query should now work correctly to fetch the desired data as per your specifications.
+Ensure `rn = 1` condition in the outer query (`WHERE rn = 1`) is appropriate based on your data model and requirements. This should help you pinpoint where the issue might be occurring and ensure your query fetches the expected results.
