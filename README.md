@@ -1,4 +1,115 @@
-To ensure that the `RM_CUR_VALUE` is calculated for all rows, let's address a few potential issues:
+To calculate the `RM_CUR_VALUE` by multiplying `PER_KG_QTY` with `CUR_COST` (instead of `INPUT_QTY`), you need to adjust the calculation in the final query. Here’s how you can do it:
+
+### Modified Query
+```sql
+SELECT INPUT.ORGANIZATION_ID,
+       INPUT.PROD_TYPE,
+       INPUT.TRX_DATE,
+       INPUT.JUMBO_ITEM_CODE,
+       INPUT.INPUT_ITEM_CODE,
+       INPUT.INPUT_QTY,
+       OUTPUT.OUTPUT_QTY,
+       INPUT.INPUT_QTY / OUTPUT.OUTPUT_QTY     PER_KG_QTY,
+       PER_KG_QTY * NVL(C.CUR_COST, D.ITEM_COST) AS RM_CUR_VALUE
+  FROM (  SELECT ORGANIZATION_ID,
+                 PROD_TYPE,
+                 LINE_TYPE,
+                 TRX_DATE,
+                 JUMBO_ITEM_CODE,
+                 INPUT_ITEM_CODE,
+                 SUM (INPUT_QTY)     INPUT_QTY
+            FROM (  SELECT ORGANIZATION_ID,
+                           PROD_TYPE,
+                           LINE_TYPE,
+                           TRX_DATE,
+                           BATCH_NO,
+                           (SELECT DISTINCT ITEM_CODE
+                              FROM XXSRF.JUMBO_MET_TRANSACTIONS B
+                             WHERE     LINE_TYPE = 1
+                                   AND PROD_TYPE = 'JUMBO'
+                                   AND A.ORGANIZATION_ID = B.ORGANIZATION_ID
+                                   AND A.BATCH_NO = B.BATCH_NO
+                                   AND A.TRX_DATE = B.TRX_DATE
+                                   AND A.PROD_TYPE = B.PROD_TYPE)
+                               JUMBO_ITEM_CODE,
+                           ITEM_CODE
+                               INPUT_ITEM_CODE,
+                           SUM (TRX_QTY) INPUT_QTY
+                      FROM XXSRF.JUMBO_MET_TRANSACTIONS A
+                     WHERE     LINE_TYPE = -1
+                           AND PROD_TYPE = 'JUMBO'
+                           AND ORGANIZATION_ID = :P_ORGANIZATION_ID
+                           AND TRX_DATE = :P_TRX_DATE
+                  GROUP BY ORGANIZATION_ID,
+                           PROD_TYPE,
+                           LINE_TYPE,
+                           TRX_DATE,
+                           BATCH_NO,
+                           ITEM_CODE)
+        GROUP BY ORGANIZATION_ID,
+                 PROD_TYPE,
+                 LINE_TYPE,
+                 TRX_DATE,
+                 JUMBO_ITEM_CODE,
+                 INPUT_ITEM_CODE) INPUT,
+       (  SELECT ORGANIZATION_ID,
+                 PROD_TYPE,
+                 LINE_TYPE,
+                 TRX_DATE,
+                 --         BATCH_NO,
+                 ITEM_CODE         JUMBO_ITEM_CODE,
+                 SUM (TRX_QTY)     OUTPUT_QTY
+            FROM XXSRF.JUMBO_MET_TRANSACTIONS A
+           WHERE     LINE_TYPE = 1
+                 AND PROD_TYPE = 'JUMBO'
+                 AND ORGANIZATION_ID = :P_ORGANIZATION_ID
+                 AND TRX_DATE = :P_TRX_DATE
+        GROUP BY ORGANIZATION_ID,
+                 PROD_TYPE,
+                 LINE_TYPE,
+                 TRX_DATE,
+                 --         BATCH_NO,
+                 ITEM_CODE) OUTPUT,
+       (  SELECT MSI.SEGMENT1,
+                 OOD.ORGANIZATION_ID,
+                 SUM (CMPNT_COST) AS CUR_COST
+            FROM APPS.CM_CMPT_DTL_VW C,
+                 APPS.MTL_SYSTEM_ITEMS MSI,
+                 APPS.ORG_ORGANIZATION_DEFINITIONS OOD
+           WHERE C.ORGANIZATION_ID = OOD.ORGANIZATION_ID
+                 AND MSI.INVENTORY_ITEM_ID = C.INVENTORY_ITEM_ID
+                 AND OOD.OPERATING_UNIT = :P_ORG_ID
+                 AND PERIOD_ID = (SELECT PERIOD_ID
+                                    FROM APPS.GMF_PERIOD_STATUSES A,
+                                         APPS.HR_OPERATING_UNITS B
+                                   WHERE B.ORGANIZATION_ID = :P_ORG_ID
+                                         AND A.LEGAL_ENTITY_ID = B.DEFAULT_LEGAL_CONTEXT_ID
+                                         AND COST_TYPE_ID IN (SELECT COST_TYPE_ID
+                                                                FROM APPS.CM_MTHD_MST
+                                                               WHERE COST_MTHD_CODE = 'PMAC')
+                                         AND TO_CHAR(START_DATE, 'MON-RR') = TO_CHAR(:P_TRX_DATE, 'MON-RR'))
+        GROUP BY MSI.SEGMENT1,
+                 OOD.ORGANIZATION_ID) C,
+       (  SELECT ORGANIZATION_ID,
+                 PRODUCT_TYPE,
+                 ITEM_COST
+            FROM XXSRF.PFB_CONTRI_ITEM_AVG_COST
+           WHERE ORGANIZATION_ID = :P_ORGANIZATION_ID
+             AND TRX_DATE = TRUNC(LAST_DAY(:P_TRX_DATE))
+             AND ITEM_CATEGORY = 'NHP') D
+WHERE INPUT.ORGANIZATION_ID = OUTPUT.ORGANIZATION_ID
+      AND INPUT.PROD_TYPE = OUTPUT.PROD_TYPE
+      AND INPUT.TRX_DATE = OUTPUT.TRX_DATE
+      AND INPUT.JUMBO_ITEM_CODE = OUTPUT.JUMBO_ITEM_CODE
+      AND INPUT.INPUT_ITEM_CODE = C.SEGMENT1(+)
+      AND INPUT.INPUT_ITEM_CODE = D.PRODUCT_TYPE(+);
+```
+
+### Explanation:
+- **PER_KG_QTY**: This is calculated as `INPUT.INPUT_QTY / OUTPUT.OUTPUT_QTY`.
+- **RM_CUR_VALUE**: This is calculated by multiplying `PER_KG_QTY` by `NVL(C.CUR_COST, D.ITEM_COST)`, which ensures that either `CUR_COST` or `ITEM_COST` (whichever is not null) is used for the multiplication.
+
+By making these changes, you can ensure that `RM_CUR_VALUE` is calculated using `PER_KG_QTY` instead of `INPUT_QTY`.To ensure that the `RM_CUR_VALUE` is calculated for all rows, let's address a few potential issues:
 
 1. **Missing Cost Data**: There might be missing cost data in either the `APPS.CM_CMPT_DTL_VW` or `XXSRF.PFB_CONTRI_ITEM_AVG_COST` tables for some `INPUT_ITEM_CODE` values.
 
