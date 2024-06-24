@@ -1,72 +1,80 @@
-Based on the output you've shared and the SQL query provided earlier, it seems like the issue lies in how the join conditions are structured. Specifically, you want to calculate `RM_CUR_VALUE` for all `INPUT_ITEM_CODE` values, not just for `BOP-RE-CHIP`. 
+To help diagnose and fix the issue, let's create a test SQL query that can isolate the problem area and provide insights into where adjustments are needed. We'll start by simplifying the query and focusing on retrieving relevant data related to `BOP-RE-CHIP` and other `INPUT_ITEM_CODE` values. This will help us pinpoint any discrepancies or issues with the join conditions or calculations.
 
-Let's adjust the query to ensure that `RM_CUR_VALUE` is calculated for all `INPUT_ITEM_CODE` values:
+### Test SQL Query to Identify Issues:
 
 ```sql
 SELECT 
-    INPUT.ORGANIZATION_ID,
-    INPUT.PROD_TYPE,
-    INPUT.TRX_DATE,
-    INPUT.JUMBO_ITEM_CODE,
-    INPUT.INPUT_ITEM_CODE,
-    INPUT.INPUT_QTY,
-    OUTPUT.OUTPUT_QTY,
-    INPUT.INPUT_QTY / OUTPUT.OUTPUT_QTY AS PER_KG_QTY,
-    ROUND((INPUT.INPUT_QTY / OUTPUT.OUTPUT_QTY) * NVL(C.CUR_COST, D.ITEM_COST), 2) AS RM_CUR_VALUE,
+    JT.ORGANIZATION_ID,
+    JT.PROD_TYPE,
+    JT.TRX_DATE,
+    JT.JUMBO_ITEM_CODE,
+    JT.INPUT_ITEM_CODE,
+    JT.INPUT_QTY,
+    JT.OUTPUT_QTY,
+    JT.PER_KG_QTY,
+    ROUND(JT.PER_KG_QTY * NVL(C.CUR_COST, D.ITEM_COST), 2) AS RM_CUR_VALUE,
     C.CUR_COST,
     D.ITEM_COST
 FROM 
     (
         SELECT 
-            ORGANIZATION_ID,
-            PROD_TYPE,
-            LINE_TYPE,
-            TRX_DATE,
-            JUMBO_ITEM_CODE,
-            INPUT_ITEM_CODE,
-            SUM(INPUT_QTY) AS INPUT_QTY
+            A.ORGANIZATION_ID,
+            A.PROD_TYPE,
+            A.TRX_DATE,
+            A.JUMBO_ITEM_CODE,
+            A.INPUT_ITEM_CODE,
+            A.INPUT_QTY,
+            B.OUTPUT_QTY,
+            A.INPUT_QTY / B.OUTPUT_QTY AS PER_KG_QTY
         FROM 
             (
                 SELECT 
                     ORGANIZATION_ID,
                     PROD_TYPE,
-                    LINE_TYPE,
                     TRX_DATE,
-                    BATCH_NO,
-                    (
-                        SELECT DISTINCT ITEM_CODE
-                        FROM XXSRF.JUMBO_MET_TRANSACTIONS B
-                        WHERE A.ORGANIZATION_ID = B.ORGANIZATION_ID
-                            AND A.BATCH_NO = B.BATCH_NO
-                            AND A.TRX_DATE = B.TRX_DATE
-                            AND A.PROD_TYPE = B.PROD_TYPE
-                            AND LINE_TYPE = 1 -- Assuming this is the correct condition for output
-                    ) AS JUMBO_ITEM_CODE,
-                    ITEM_CODE AS INPUT_ITEM_CODE,
-                    SUM(TRX_QTY) AS INPUT_QTY
+                    JUMBO_ITEM_CODE,
+                    INPUT_ITEM_CODE,
+                    SUM(INPUT_QTY) AS INPUT_QTY
                 FROM 
-                    XXSRF.JUMBO_MET_TRANSACTIONS A
+                    XXSRF.JUMBO_MET_TRANSACTIONS
                 WHERE 
-                    LINE_TYPE IN (-1, 1) -- Adjust this to correctly capture both inputs and outputs
-                    AND PROD_TYPE = 'JUMBO'
+                    PROD_TYPE = 'JUMBO'
                     AND ORGANIZATION_ID = :P_ORGANIZATION_ID
                     AND TRX_DATE = :P_TRX_DATE
+                    AND INPUT_ITEM_CODE <> 'BOP-RE-CHIP'  -- Exclude BOP-RE-CHIP for testing
                 GROUP BY 
                     ORGANIZATION_ID,
                     PROD_TYPE,
-                    LINE_TYPE,
                     TRX_DATE,
-                    BATCH_NO,
+                    JUMBO_ITEM_CODE,
+                    INPUT_ITEM_CODE
+            ) A
+        LEFT JOIN 
+            (
+                SELECT 
+                    ORGANIZATION_ID,
+                    PROD_TYPE,
+                    TRX_DATE,
+                    ITEM_CODE AS JUMBO_ITEM_CODE,
+                    SUM(TRX_QTY) AS OUTPUT_QTY
+                FROM 
+                    XXSRF.JUMBO_MET_TRANSACTIONS
+                WHERE 
+                    PROD_TYPE = 'JUMBO'
+                    AND ORGANIZATION_ID = :P_ORGANIZATION_ID
+                    AND TRX_DATE = :P_TRX_DATE
+                    AND ITEM_CODE = 'BOP-RE-CHIP'  -- Only for BOP-RE-CHIP for testing
+                    AND LINE_TYPE = 1
+                GROUP BY 
+                    ORGANIZATION_ID,
+                    PROD_TYPE,
+                    TRX_DATE,
                     ITEM_CODE
-            ) INPUT_DATA
-        GROUP BY 
-            ORGANIZATION_ID,
-            PROD_TYPE,
-            LINE_TYPE,
-            TRX_DATE,
-            JUMBO_ITEM_CODE,
-            INPUT_ITEM_CODE
-    ) INPUT
+            ) B ON A.ORGANIZATION_ID = B.ORGANIZATION_ID
+                AND A.PROD_TYPE = B.PROD_TYPE
+                AND A.TRX_DATE = B.TRX_DATE
+                AND A.JUMBO_ITEM_CODE = B.JUMBO_ITEM_CODE
+    ) JT
 LEFT JOIN 
     (
         SELECT 
@@ -128,8 +136,8 @@ LEFT JOIN
             MSI.INVENTORY_ITEM_ID,
             MSI.SEGMENT1,
             OOD.ORGANIZATION_ID
-    ) C ON INPUT.ORGANIZATION_ID = C.ORGANIZATION_ID
-        AND INPUT.INPUT_ITEM_CODE = C.SEGMENT1
+    ) C ON JT.ORGANIZATION_ID = C.ORGANIZATION_ID
+        AND JT.INPUT_ITEM_CODE = C.SEGMENT1
 LEFT JOIN 
     (
         SELECT 
@@ -140,49 +148,32 @@ LEFT JOIN
             ORGANIZATION_ID = :P_ORGANIZATION_ID
             AND TRX_DATE = TRUNC(LAST_DAY(:P_TRX_DATE))
             AND ITEM_CATEGORY = 'NHP'
-    ) D ON INPUT.ORGANIZATION_ID = D.ORGANIZATION_ID
-        AND D.PRODUCT_TYPE = SUBSTR(INPUT.INPUT_ITEM_CODE, 1, INSTR(INPUT.INPUT_ITEM_CODE, '-') - 1)
-LEFT JOIN 
-    (
-        SELECT 
-            ORGANIZATION_ID,
-            PROD_TYPE,
-            LINE_TYPE,
-            TRX_DATE,
-            ITEM_CODE AS JUMBO_ITEM_CODE,
-            SUM(TRX_QTY) AS OUTPUT_QTY
-        FROM 
-            XXSRF.JUMBO_MET_TRANSACTIONS A
-        WHERE 
-            LINE_TYPE = 1 -- Assuming this is the correct condition for output
-            AND PROD_TYPE = 'JUMBO'
-            AND ORGANIZATION_ID = :P_ORGANIZATION_ID
-            AND TRX_DATE = :P_TRX_DATE
-        GROUP BY 
-            ORGANIZATION_ID,
-            PROD_TYPE,
-            LINE_TYPE,
-            TRX_DATE,
-            ITEM_CODE
-    ) OUTPUT ON INPUT.ORGANIZATION_ID = OUTPUT.ORGANIZATION_ID
-        AND INPUT.PROD_TYPE = OUTPUT.PROD_TYPE
-        AND INPUT.TRX_DATE = OUTPUT.TRX_DATE
-        AND INPUT.JUMBO_ITEM_CODE = OUTPUT.JUMBO_ITEM_CODE;
+    ) D ON JT.ORGANIZATION_ID = D.ORGANIZATION_ID
+        AND D.PRODUCT_TYPE = SUBSTR(JT.INPUT_ITEM_CODE, 1, INSTR(JT.INPUT_ITEM_CODE, '-') - 1);
 ```
 
-### Explanation and Adjustments:
-1. **Subquery Adjustments**: 
-   - Ensure that the subquery (`INPUT_DATA`) correctly sums up `INPUT_QTY` for each `INPUT_ITEM_CODE`.
-   - Adjust `LINE_TYPE` condition in the subquery to correctly capture both input and output transactions.
+### Explanation of the Test Query:
 
-2. **LEFT JOINs**: 
-   - Ensure all `INPUT_ITEM_CODE` values are considered by joining `INPUT` with the `C` and `D` tables appropriately.
-   - Make sure to join `INPUT` with `OUTPUT` on all key columns (`ORGANIZATION_ID`, `PROD_TYPE`, `TRX_DATE`, `JUMBO_ITEM_CODE`).
+1. **Subquery `A`**: 
+   - Retrieves `INPUT_QTY` for all `INPUT_ITEM_CODE` values except `BOP-RE-CHIP` for testing purposes. This helps us verify if calculations are correct for other items.
 
-3. **Calculation**: 
-   - `RM_CUR_VALUE` calculation remains the same: multiply `PER_KG_QTY` by the cost (`CUR_COST` or `ITEM_COST`) and round it to two decimal places.
+2. **Subquery `B`**: 
+   - Retrieves `OUTPUT_QTY` specifically for `BOP-RE-CHIP`. This is to ensure that calculations are correct when `BOP-RE-CHIP` is involved.
 
-### Debugging Tips:
-- **Check Join Conditions**: Verify that all join conditions are correctly matching columns from `INPUT` with corresponding columns from `C`, `D`, and `OUTPUT`.
-- **Data Integrity**: Ensure that data exists in `C` and `D` tables for all `INPUT_ITEM_CODE` values on the given `TRX_DATE`.
-- **SQL Execution**: Execute the SQL query step-by-step to identify where the filtering or joining might be incorrect.
+3. **Main Query (`JT`)**: 
+   - Joins the results of `A` and `B` to calculate `PER_KG_QTY` and `RM_CUR_VALUE` based on `PER_KG_QTY` multiplied by the appropriate cost (`CUR_COST` from `C` or `ITEM_COST` from `D`).
+
+4. **Joins (`C` and `D`)**: 
+   - Ensure that `C` and `D` are joined correctly with `JT` based on `ORGANIZATION_ID` and `INPUT_ITEM_CODE`.
+
+### Steps to Diagnose and Fix:
+
+- **Run the Query**: Execute this test query with appropriate bind variables (`:P_ORGANIZATION_ID`, `:P_TRX_DATE`, etc.) to see the output.
+  
+- **Inspect Results**: Check the output to ensure that `RM_CUR_VALUE` is calculated correctly for different `INPUT_ITEM_CODE` values, especially `BOP-RE-CHIP` and others.
+
+- **Adjust Joins and Conditions**: If `RM_CUR_VALUE` is not correct for all `INPUT_ITEM_CODE` values, adjust the joins (`LEFT JOIN`, `INNER JOIN`, etc.) and conditions in the main query (`JT`) to correctly associate `PER_KG_QTY` with the respective cost (`CUR_COST` or `ITEM_COST`).
+
+- **Debugging SQL**: Use SQL logging or output to debug and verify each step of the calculation. Ensure that all join conditions are correctly matched and that aggregation (`SUM`, `GROUP BY`) is applied appropriately.
+
+By following these steps, you should be able to identify where the issue lies in your SQL query and make the necessary adjustments to calculate `RM_CUR_VALUE` correctly for all `INPUT_ITEM_CODE` values. Adjustments may include refining join conditions, ensuring data availability (`C` and `D` tables), and verifying calculation logic (`PER_KG_QTY` and cost multiplication).
