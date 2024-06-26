@@ -1,4 +1,26 @@
-in this query"""----------------------------------------------------------------------------------------------------------------------------
+1. i want you to get data or extract 
+SALE.ORGANIZATION_ID,
+       SALE.TRX_DATE,
+     
+       SALE.ITEM_CODE,--DONE
+       SALE.INV_QUANTITY,--DONE
+       SALE.NET_VALUE,--DONE
+       SALE.NPR,    --DONE
+from table XXSRF.XXSRF_PFB_NPR_FINAL_DETAILS_TESTING
+this table contain 
+SALE.ORGANIZATION_ID,
+       SALE.TRX_DATE,
+     
+       SALE.ITEM_CODE,
+       SALE.INV_QUANTITY,--INV_QUANTITY by name SALES_QTY_MT
+
+       SALE.NET_VALUE,--NET_VALUE by name SALE_VALUE
+
+       SALE.NPR,    --NPR by name GROSS_NPR
+kindly modify the above query for this rest keep other partts same
+2. and also add one more coloumn customer_name from this table XXSRF.XXSRF_PFB_NPR_FINAL_DETAILS_TESTING
+3. i want you to make all chnage i said in above query modify the code and then give me full code
+"""----------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------- FINAL OUTPUT ------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------------------
  SELECT ORGANIZATION_ID,
@@ -243,24 +265,3 @@ in this query"""----------------------------------------------------------------
     --   AND SALE.PRODUCT_TYPE = EXPENSE.PRODUCT_TYPE(+)
        AND SALE.TRX_DATE = EXPENSE.TRX_DATE(+)
        AND SALE.ITEM_CODE = EXPENSE.FG_ITEM_CODE(+));"""
-1. i want you to get data for 
-SALE.ORGANIZATION_ID,
-       SALE.TRX_DATE,
-     
-       SALE.ITEM_CODE,--DONE
-       SALE.INV_QUANTITY,--DONE
-       SALE.NET_VALUE,--DONE
-       SALE.NPR,    --DONE
-not my mutiiple table or any but only from table XXSRF.XXSRF_PFB_NPR_FINAL_DETAILS_TESTING
-this table contain 
-SALE.ORGANIZATION_ID,
-       SALE.TRX_DATE,
-     
-       SALE.ITEM_CODE,
-       SALE.INV_QUANTITY,--INV_QUANTITY by name SALES_QTY_MT
-
-       SALE.NET_VALUE,--NET_VALUE by name SALE_VALUE
-
-       SALE.NPR,    --NPR by name GROSS_NPR
-2. and also add one more coloumn customer_name from this table XXSRF.XXSRF_PFB_NPR_FINAL_DETAILS_TESTING
-3. i want you to make all chnage i said in above query modify the code and then give me full code
