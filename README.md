@@ -1,10 +1,8 @@
 BEGIN
     INSERT INTO XXSRF.PFB_MIS_REPORT_TEMP_TEST
 --    DELETE FROM   XXSRF.PFB_MIS_REPORT_TEMP
-    
           SELECT SEQ,
                  STAGE,
-                 --   decode(Line, 'I', 'L-1', 'J', 'L-2', Line) Line,
                  CASE
                      WHEN (:P_WHSE_LOC = 112 AND LINE = '3')
                      THEN 'L-1'
@@ -113,13 +111,6 @@ BEGIN
                                               'WIP', 'FILM', ITEM_TYPE)-------------------------------------------------------------------END Opening WIP
                   
                   UNION ALL
-              
-                    --         SELECT 5, 'Packed', '2', NULL, 'FILM', 0, 0
-                    --           FROM DUAL
-                    --         UNION ALL
-                    --         SELECT 5, 'Packed', '1', NULL, 'FILM', 0, 0
-                    --           FROM DUAL
-                    --          union all
                     SELECT 2,-----------------------------------------------------------------------------------==========================-----NRW Gen
                            'NRW Gen',
                            DECODE (:P_WHSE_LOC, 114, '1', DECODE (SUBSTR (ROUTING_NO, -1, 1), 4, 3, SUBSTR (ROUTING_NO, -1, 1))),
@@ -133,7 +124,6 @@ BEGIN
                      WHERE     GMD.BATCH_ID = GBH.BATCH_ID
                            AND LINE_TYPE = -1
                            AND GBH.ROUTING_ID = FRH.ROUTING_ID
-                           --   AND GBH.ORGANIZATION_ID = OOD.ORGANIZATION_ID
                            AND GBH.ORGANIZATION_ID = :P_WHSE_LOC
                            AND FRH.ROUTING_NO LIKE ('%J%')
                            AND FRH.ROUTING_NO <> 'JRND'
@@ -151,13 +141,11 @@ BEGIN
                            -1 * SUM (TRANSACTION_QUANTITY) / 1000
                       FROM APPS.MTL_MATERIAL_TRANSACTIONS B,
                            APPS.MTL_SYSTEM_ITEMS_B     ICMB,
-                           -- xxsrf.pfb_loc_group          loc,
                            APPS.GME_MATERIAL_DETAILS   GMD
                      WHERE     GMD.BATCH_ID = B.TRANSACTION_SOURCE_ID
                            AND GMD.MATERIAL_DETAIL_ID = B.TRX_SOURCE_LINE_ID
                            AND GMD.LINE_TYPE IN (2, -1)
                            AND TO_CHAR (TRANSACTION_DATE, 'MON-YYYY') = TO_CHAR (:P_DATE_FROM, 'MON-YYYY')
-                           --  AND b.organization_id = ood.organization_id
                            AND B.SUBINVENTORY_CODE IN ('NRW', 'NRW1', 'NRW2', 'NRW3')
                            AND ITEM_TYPE = 'NRW'
                            AND SUBSTR (ICMB.SEGMENT1, 1, 3) <> 'MET'
@@ -167,15 +155,11 @@ BEGIN
                                                      'PWSS-RESIN',
                                                      'RWBPL',
                                                      'RWCPL')
-                           --   AND icmb.segment1 IN
-                           --      ('PWSS-IDR', 'PWSC-IDR', 'PWSD-IDR', 'PWSG-IDR', 'LUMPS')
                            AND ICMB.INVENTORY_ITEM_ID = B.INVENTORY_ITEM_ID
                            AND ICMB.ORGANIZATION_ID = B.ORGANIZATION_ID
-                           --     AND transaction_quantity > 0
                            AND B.ORGANIZATION_ID = :P_WHSE_LOC
                            AND :P_WHSE_LOC <> 112
                            AND B.TRANSACTION_SOURCE_TYPE_ID = 5
-                  --  AND NVL(B.SOURCE_LINE_ID,-99) = -99
                   GROUP BY SUBSTR (B.SUBINVENTORY_CODE, -1, 1)
                   UNION ALL
                     SELECT 2,
@@ -187,13 +171,11 @@ BEGIN
                            -1 * SUM (TRANSACTION_QUANTITY) / 1000
                       FROM APPS.MTL_MATERIAL_TRANSACTIONS B,
                            APPS.MTL_SYSTEM_ITEMS_B     ICMB,
-                           -- xxsrf.pfb_loc_group          loc,
                            APPS.GME_MATERIAL_DETAILS   GMD
                      WHERE     GMD.BATCH_ID = B.TRANSACTION_SOURCE_ID
                            AND GMD.MATERIAL_DETAIL_ID = B.TRX_SOURCE_LINE_ID
                            AND GMD.LINE_TYPE IN (2)
                            AND TO_CHAR (TRANSACTION_DATE, 'MON-YYYY') = TO_CHAR (:P_DATE_FROM, 'MON-YYYY')
-                           --  AND b.organization_id = ood.organization_id
                            AND B.SUBINVENTORY_CODE IN ('NRW', 'NRW1', 'NRW2', 'NRW3')
                            AND ITEM_TYPE = 'NRW'
                            AND SUBSTR (ICMB.SEGMENT1, 1, 3) <> 'MET'
@@ -204,15 +186,11 @@ BEGIN
                                                      'RWBPL',
                                                      'RWCPL',
                                                      'PWSG-RESIN')
-                           --   AND icmb.segment1 IN
-                           --      ('PWSS-IDR', 'PWSC-IDR', 'PWSD-IDR', 'PWSG-IDR', 'LUMPS')
                            AND ICMB.INVENTORY_ITEM_ID = B.INVENTORY_ITEM_ID
                            AND ICMB.ORGANIZATION_ID = B.ORGANIZATION_ID
                            AND :P_WHSE_LOC = 112
-                           --     AND transaction_quantity > 0
                            AND B.ORGANIZATION_ID = :P_WHSE_LOC
                            AND B.TRANSACTION_SOURCE_TYPE_ID = 5
-                  --  AND NVL(B.SOURCE_LINE_ID,-99) = -99
                   GROUP BY SUBSTR (B.SUBINVENTORY_CODE, -1, 1)
                   UNION ALL
                   SELECT 2,
@@ -223,15 +201,6 @@ BEGIN
                          0,
                          0
                     FROM DUAL
-                  --            UNION ALL
-                  --            SELECT   2,
-                  --                     'NRW Gen',
-                  --                     '1',
-                  --                     NULL,
-                  --                     'Bare Waste',
-                  --                     0,
-                  --                     0
-                  --              FROM   DUAL
                   UNION ALL
                     SELECT 2,
                            'NRW Gen',
@@ -242,20 +211,17 @@ BEGIN
                            -1 * SUM (TRANSACTION_QUANTITY) / 1000
                       FROM APPS.MTL_MATERIAL_TRANSACTIONS B,
                            APPS.MTL_SYSTEM_ITEMS_B     ICMB,
-                           -- xxsrf.pfb_loc_group          loc,
                            APPS.GME_MATERIAL_DETAILS   GMD
                      WHERE     GMD.BATCH_ID = B.TRANSACTION_SOURCE_ID
                            AND GMD.MATERIAL_DETAIL_ID = B.TRX_SOURCE_LINE_ID
                            AND GMD.LINE_TYPE IN (1, 2)
                            AND TO_CHAR (TRANSACTION_DATE, 'MON-YYYY') = TO_CHAR (:P_DATE_FROM, 'MON-YYYY')
-                           --      AND b.organization_id = ood.organization_id
                            AND B.SUBINVENTORY_CODE IN ('NRW', 'NRW1', 'NRW2', 'NRW3')
                            AND SUBSTR (ICMB.SEGMENT1, 1, 3) = 'MET'
                            AND ITEM_TYPE = 'NRW'
                            AND :P_WHSE_LOC NOT IN (112, 1032)
                            AND ICMB.INVENTORY_ITEM_ID = B.INVENTORY_ITEM_ID
                            AND ICMB.ORGANIZATION_ID = B.ORGANIZATION_ID
-                           --                  AND transaction_quantity > 0
                            AND B.TRANSACTION_SOURCE_TYPE_ID = 5
                            AND B.ORGANIZATION_ID = :P_WHSE_LOC
                            AND NVL (B.SOURCE_LINE_ID, -99) = -99
@@ -280,13 +246,11 @@ BEGIN
                            -1 * SUM (TRANSACTION_QUANTITY) / 1000
                       FROM APPS.MTL_MATERIAL_TRANSACTIONS B,
                            APPS.MTL_SYSTEM_ITEMS_B     ICMB,
-                           -- xxsrf.pfb_loc_group          loc,
                            APPS.GME_MATERIAL_DETAILS   GMD
                      WHERE     GMD.BATCH_ID = B.TRANSACTION_SOURCE_ID
                            AND GMD.MATERIAL_DETAIL_ID = B.TRX_SOURCE_LINE_ID
                            AND GMD.LINE_TYPE IN (1, 2)
                            AND TO_CHAR (TRANSACTION_DATE, 'MON-YYYY') = TO_CHAR (:P_DATE_FROM, 'MON-YYYY')
-                           --    AND b.organization_id = ood.organization_id
                            AND B.SUBINVENTORY_CODE IN ('NRW', 'NRW1', 'NRW2', 'NRW3')
                            AND SUBSTR (ICMB.SEGMENT1, 1, 3) = 'MET'
                            AND ICMB.SEGMENT1 <> 'MET-FILM'
@@ -294,7 +258,6 @@ BEGIN
                            AND :P_WHSE_LOC IN (112, 1032)
                            AND ICMB.INVENTORY_ITEM_ID = B.INVENTORY_ITEM_ID
                            AND ICMB.ORGANIZATION_ID = B.ORGANIZATION_ID
-                           --                  AND transaction_quantity > 0
                            AND B.TRANSACTION_SOURCE_TYPE_ID = 5
                            AND B.ORGANIZATION_ID = :P_WHSE_LOC
                            AND NVL (B.SOURCE_LINE_ID, -99) = -99
@@ -318,15 +281,6 @@ BEGIN
                          0,
                          0
                     FROM DUAL
-                  /*UNION ALL
-                  SELECT   2,
-                           'NRW Gen',
-                           '1',
-                           NULL,
-                           'Met PET Waste',
-                           0,
-                           0
-                    FROM   DUAL*/
                   UNION ALL
                     SELECT 2,
                            'NRW Gen',
@@ -337,18 +291,15 @@ BEGIN
                            -1 * SUM (TRANSACTION_QUANTITY) / 1000
                       FROM APPS.MTL_MATERIAL_TRANSACTIONS B,
                            APPS.MTL_SYSTEM_ITEMS_B     ICMB,
-                           -- xxsrf.pfb_loc_group          loc,
                            APPS.GME_MATERIAL_DETAILS   GMD
                      WHERE     GMD.BATCH_ID = B.TRANSACTION_SOURCE_ID
                            AND GMD.MATERIAL_DETAIL_ID = B.TRX_SOURCE_LINE_ID
                            AND GMD.LINE_TYPE = 2
                            AND TO_CHAR (TRANSACTION_DATE, 'MON-YYYY') = TO_CHAR (:P_DATE_FROM, 'MON-YYYY')
-                           -- AND b.organization_id = ood.organization_id
                            AND B.SUBINVENTORY_CODE IN ('NRW', 'NRW1', 'NRW2', 'NRW3')
                            AND ICMB.SEGMENT1 IN ('WASTE-ALUM-SLUDGE', 'WASTE-ALUM-WIRE-PCS')
                            AND ICMB.INVENTORY_ITEM_ID = B.INVENTORY_ITEM_ID
                            AND ICMB.ORGANIZATION_ID = B.ORGANIZATION_ID
-                           --AND transaction_quantity > 0
                            AND B.TRANSACTION_SOURCE_TYPE_ID = 5
                            AND NVL (B.SOURCE_LINE_ID, -99) = -99
                            AND B.ORGANIZATION_ID = :P_WHSE_LOC
@@ -361,41 +312,9 @@ BEGIN
                          'Al Sludge and Leftover wire',
                          0,
                          0
-                    FROM DUAL
-                  --            UNION ALL
-                  --            SELECT   2,
-                  --                     'NRW Gen',
-                  --                     '1',
-                  --                     NULL,
-                  --                     'Al Sludge and Leftover wire',
-                  --                     0,
-                  --                     0
-                  --              FROM   DUAL
-                  UNION ALL
-                    SELECT 3,
-                           'RE-CHIP to Resin_Other unit',
-                           DECODE (:P_WHSE_LOC, 114, '1', SUBSTR (B.SUBINVENTORY_CODE, -1, 1)),
-                           NULL,
-                           'CHIP' REC_CATEGORY,
-                           -1 * ABS (SUM (TRANSACTION_QUANTITY)) / 1000 REC_QTY,
-                           -1 * ABS (SUM (TRANSACTION_QUANTITY)) / 1000
-                      FROM APPS.MTL_MATERIAL_TRANSACTIONS B,
-                           APPS.MTL_SYSTEM_ITEMS_B     ICMB
-                     WHERE     B.TRANSACTION_TYPE_ID IN (2, 24, 51, 32, 33)
-                           AND B.INVENTORY_ITEM_ID = ICMB.INVENTORY_ITEM_ID
-                           AND B.TRANSFER_ORGANIZATION_ID = ICMB.ORGANIZATION_ID
-                           --  AND b.transfer_organization_id = ood.organization_id
-                           AND TO_CHAR (TRANSACTION_DATE, 'MON-YYYY') = TO_CHAR (:P_DATE_FROM, 'MON-YYYY')
-                           AND B.ORGANIZATION_ID IN (:P_WHSE_LOC)
-                           AND SEGMENT1 IN ('RE-CHIP', 'RE-CHIP-2', 'BOP-RE-CHIP')
-                           --  AND decode(item_type,'PFB ITEMS','FILM','AL','Al Wire','WIP','FILM',item_type) = 'FILM'
-                           AND B.SUBINVENTORY_CODE IN ('FED1', 'FED2', 'FED3') /*from inventory */
-                           AND UPPER (B.TRANSFER_SUBINVENTORY) IN ('STAGING', 'FGL')  -- to inventory
-                  --         AND transaction_quantity < 0
-                  GROUP BY SUBSTR (B.SUBINVENTORY_CODE, -1, 1))----------------------------------------------------------------------------------END-NRW Gen
+                    FROM DUAL) ---------------------------END-NRW Gen
         GROUP BY SEQ,
                  STAGE,
-                 --  DECODE (Line, '1', 'L-1', '2', 'L-2','3','L-3','W','L-3', Line),
                  LOC_GROUP,
                  CASE
                      WHEN (:P_WHSE_LOC = 112 AND LINE = '3')
@@ -409,7 +328,6 @@ BEGIN
 
     BEGIN
         INSERT INTO XXSRF.PFB_MIS_REPORT_TEMP_TEST
-
               SELECT 3,--------------------------------------------------------------------------------------------------CLOSING
                      'Closing',
                      DECODE (:P_WHSE_LOC, 114, 'L-1', LINE)    LINE,
