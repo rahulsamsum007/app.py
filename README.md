@@ -1,6 +1,6 @@
 BEGIN
     INSERT INTO XXSRF.PFB_MIS_REPORT_TEMP_TEST
---    DELETE FROM   XXSRF.PFB_MIS_REPORT_TEMP_TEST
+--    DELETE FROM   XXSRF.PFB_MIS_REPORT_TEMP
     
           SELECT SEQ,
                  STAGE,
@@ -120,7 +120,7 @@ BEGIN
                     --         SELECT 5, 'Packed', '1', NULL, 'FILM', 0, 0
                     --           FROM DUAL
                     --          union all
-                    SELECT 6,-----------------------------------------------------------------------------------==========================-----NRW Gen
+                    SELECT 2,-----------------------------------------------------------------------------------==========================-----NRW Gen
                            'NRW Gen',
                            DECODE (:P_WHSE_LOC, 114, '1', DECODE (SUBSTR (ROUTING_NO, -1, 1), 4, 3, SUBSTR (ROUTING_NO, -1, 1))),
                            'NRW' LOC_GROUP,
@@ -142,7 +142,7 @@ BEGIN
                            AND GBH.BATCH_STATUS IN (3, 4)
                   GROUP BY ROUTING_NO
                   UNION ALL
-                    SELECT 6,
+                    SELECT 2,
                            'NRW Gen',
                            DECODE (:P_WHSE_LOC, 114, '1', SUBSTR (B.SUBINVENTORY_CODE, -1, 1)),
                            'NRW' LOC_GROUP,
@@ -178,7 +178,7 @@ BEGIN
                   --  AND NVL(B.SOURCE_LINE_ID,-99) = -99
                   GROUP BY SUBSTR (B.SUBINVENTORY_CODE, -1, 1)
                   UNION ALL
-                    SELECT 6,
+                    SELECT 2,
                            'NRW Gen',
                            DECODE (:P_WHSE_LOC, 114, '1', SUBSTR (B.SUBINVENTORY_CODE, -1, 1)),
                            'NRW' LOC_GROUP,
@@ -215,16 +215,16 @@ BEGIN
                   --  AND NVL(B.SOURCE_LINE_ID,-99) = -99
                   GROUP BY SUBSTR (B.SUBINVENTORY_CODE, -1, 1)
                   UNION ALL
-                  SELECT 6,
+                  SELECT 2,
                          'NRW Gen',
-                         DECODE (:P_WHSE_LOC, 112, '2', 1036, '3', 240, '1', '280', '1'),
+                         DECODE (:P_WHSE_LOC, 112, '2', 1032, '3', 240, '1', '280', '1'),
                          NULL,
                          'Bare Waste',
                          0,
                          0
                     FROM DUAL
                   --            UNION ALL
-                  --            SELECT   6,
+                  --            SELECT   2,
                   --                     'NRW Gen',
                   --                     '1',
                   --                     NULL,
@@ -233,7 +233,7 @@ BEGIN
                   --                     0
                   --              FROM   DUAL
                   UNION ALL
-                    SELECT 6,
+                    SELECT 2,
                            'NRW Gen',
                            DECODE (:P_WHSE_LOC, 114, '1', SUBSTR (B.SUBINVENTORY_CODE, -1, 1)),
                            'NRW' LOC_GROUP,
@@ -252,7 +252,7 @@ BEGIN
                            AND B.SUBINVENTORY_CODE IN ('NRW', 'NRW1', 'NRW2', 'NRW3')
                            AND SUBSTR (ICMB.SEGMENT1, 1, 3) = 'MET'
                            AND ITEM_TYPE = 'NRW'
-                           AND :P_WHSE_LOC NOT IN (112, 1036)
+                           AND :P_WHSE_LOC NOT IN (112, 1032)
                            AND ICMB.INVENTORY_ITEM_ID = B.INVENTORY_ITEM_ID
                            AND ICMB.ORGANIZATION_ID = B.ORGANIZATION_ID
                            --                  AND transaction_quantity > 0
@@ -267,11 +267,11 @@ BEGIN
                                            AND MMT.TRANSACTION_SOURCE_TYPE_ID = 5
                                            AND B.ORGANIZATION_ID = MMT.ORGANIZATION_ID --added by rsl
                                            AND B.INVENTORY_ITEM_ID = MMT.INVENTORY_ITEM_ID --added by rsk
-                                           AND B.TRANSACTION_DATE BETWEEN MMT.TRANSACTION_DATE - 60
-                                                                      AND MMT.TRANSACTION_DATE + 60)
+                                           AND B.TRANSACTION_DATE BETWEEN MMT.TRANSACTION_DATE - 20
+                                                                      AND MMT.TRANSACTION_DATE + 20)
                   GROUP BY SUBSTR (B.SUBINVENTORY_CODE, -1, 1)
                   UNION ALL
-                    SELECT 6,
+                    SELECT 2,
                            'NRW Gen',
                            DECODE (:P_WHSE_LOC, 114, '1', SUBSTR (B.SUBINVENTORY_CODE, -1, 1)),
                            'NRW' LOC_GROUP,
@@ -291,7 +291,7 @@ BEGIN
                            AND SUBSTR (ICMB.SEGMENT1, 1, 3) = 'MET'
                            AND ICMB.SEGMENT1 <> 'MET-FILM'
                            AND ITEM_TYPE = 'NRW'
-                           AND :P_WHSE_LOC IN (112, 1036)
+                           AND :P_WHSE_LOC IN (112, 1032)
                            AND ICMB.INVENTORY_ITEM_ID = B.INVENTORY_ITEM_ID
                            AND ICMB.ORGANIZATION_ID = B.ORGANIZATION_ID
                            --                  AND transaction_quantity > 0
@@ -306,20 +306,20 @@ BEGIN
                                            AND MMT.TRANSACTION_SOURCE_TYPE_ID = 5
                                            AND B.ORGANIZATION_ID = MMT.ORGANIZATION_ID --added by rsl
                                            AND B.INVENTORY_ITEM_ID = MMT.INVENTORY_ITEM_ID --added by rsk
-                                           AND B.TRANSACTION_DATE BETWEEN MMT.TRANSACTION_DATE - 60
-                                                                      AND MMT.TRANSACTION_DATE + 60)
+                                           AND B.TRANSACTION_DATE BETWEEN MMT.TRANSACTION_DATE - 20
+                                                                      AND MMT.TRANSACTION_DATE + 20)
                   GROUP BY SUBSTR (B.SUBINVENTORY_CODE, -1, 1)
                   UNION ALL
-                  SELECT 6,
+                  SELECT 2,
                          'NRW Gen',
-                         DECODE (:P_WHSE_LOC, 112, '2', 1036, '3', 240, '1', '280', '1'),
+                         DECODE (:P_WHSE_LOC, 112, '2', 1032, '3', 240, '1', '280', '1'),
                          NULL,
                          'Met PET Waste',
                          0,
                          0
                     FROM DUAL
                   /*UNION ALL
-                  SELECT   6,
+                  SELECT   2,
                            'NRW Gen',
                            '1',
                            NULL,
@@ -328,7 +328,7 @@ BEGIN
                            0
                     FROM   DUAL*/
                   UNION ALL
-                    SELECT 6,
+                    SELECT 2,
                            'NRW Gen',
                            DECODE (:P_WHSE_LOC, 114, '1', SUBSTR (B.SUBINVENTORY_CODE, -1, 1)),
                            'NRW' LOC_GROUP,
@@ -354,16 +354,16 @@ BEGIN
                            AND B.ORGANIZATION_ID = :P_WHSE_LOC
                   GROUP BY SUBSTR (B.SUBINVENTORY_CODE, -1, 1)
                   UNION ALL
-                  SELECT 6,
+                  SELECT 2,
                          'NRW Gen',
-                         DECODE (:P_WHSE_LOC, 112, '2', 1036, '3', 240, '1', '280', '1'),
+                         DECODE (:P_WHSE_LOC, 112, '2', 1032, '3', 240, '1', '280', '1'),
                          NULL,
                          'Al Sludge and Leftover wire',
                          0,
                          0
                     FROM DUAL
                   --            UNION ALL
-                  --            SELECT   6,
+                  --            SELECT   2,
                   --                     'NRW Gen',
                   --                     '1',
                   --                     NULL,
@@ -372,7 +372,7 @@ BEGIN
                   --                     0
                   --              FROM   DUAL
                   UNION ALL
-                    SELECT 7,
+                    SELECT 3,
                            'RE-CHIP to Resin_Other unit',
                            DECODE (:P_WHSE_LOC, 114, '1', SUBSTR (B.SUBINVENTORY_CODE, -1, 1)),
                            NULL,
@@ -381,7 +381,7 @@ BEGIN
                            -1 * ABS (SUM (TRANSACTION_QUANTITY)) / 1000
                       FROM APPS.MTL_MATERIAL_TRANSACTIONS B,
                            APPS.MTL_SYSTEM_ITEMS_B     ICMB
-                     WHERE     B.TRANSACTION_TYPE_ID IN (2, 64, 51, 32, 33)
+                     WHERE     B.TRANSACTION_TYPE_ID IN (2, 24, 51, 32, 33)
                            AND B.INVENTORY_ITEM_ID = ICMB.INVENTORY_ITEM_ID
                            AND B.TRANSFER_ORGANIZATION_ID = ICMB.ORGANIZATION_ID
                            --  AND b.transfer_organization_id = ood.organization_id
@@ -409,7 +409,8 @@ BEGIN
 
     BEGIN
         INSERT INTO XXSRF.PFB_MIS_REPORT_TEMP_TEST
-              SELECT 1,--------------------------------------------------------------------------------------------------CLOSING
+
+              SELECT 3,--------------------------------------------------------------------------------------------------CLOSING
                      'Closing',
                      DECODE (:P_WHSE_LOC, 114, 'L-1', LINE)    LINE,
                      DECODE (CASE
