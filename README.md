@@ -1,8 +1,17 @@
-To modify the code for updating data from January 1, 2024, to June 30, 2024, using `:P_START_DATE` and `:P_END_DATE` parameters, you can adjust your query to handle date ranges instead of a single period. Here's the updated query:
+To modify your code to handle the period from January 1, 2024, to June 30, 2024, and print the last date, we need to adjust the `:P_PERIOD` parameter to cover this range. Additionally, to print the last date, you can use a separate SELECT statement to retrieve and display it.
+
+Here is the modified code, including the part to print the last date:
 
 ```sql
+-- Adjusting the period to cover January 1, 2024 to June 30, 2024
+-- Printing the last date of the period
+SELECT MAX(LAST_DAY(TO_DATE(PERIOD_NAME, 'MON-YY'))) INTO :LAST_DATE
+FROM PFBCUSTOM.PFB_CONTRI_SALES_NPR
+WHERE TO_DATE(PERIOD_NAME, 'MON-YY') BETWEEN TO_DATE('01-JAN-2024', 'DD-MON-YYYY') AND TO_DATE('30-JUN-2024', 'DD-MON-YYYY');
+
+-- Updating the NPR table with the specified period and organization
 UPDATE PFBCUSTOM.PFB_CONTRI_SALES_NPR NPR
-SET (NET_NPR, FREIGHT_AND_HANDLING, SPL_DISCOUNT, COMMISSION) = (
+SET (NET_NPR, FREIGHT_AND_HANDLING, SPL_DISCOUNT, COMMISION) = (
     SELECT 
         ROUND(NPR.GROSS_NPR - ((NVL(VD.L_OTHERTHAN_FREGHT_AMT, 0) / NULLIF(TOTAL_SALES_QTY_MT, 0)) / 1000
             + (NVL(FD_OTHER.L_TOT_FREGHT_AMT, 0) / NULLIF(TOTAL_SALES_QTY_MT, 0)) / 1000), 2) AS NET_NPR,
@@ -15,7 +24,7 @@ SET (NET_NPR, FREIGHT_AND_HANDLING, SPL_DISCOUNT, COMMISSION) = (
             PRODUCT_SEGMENT, 
             SUM(SALES_QTY_MT) AS TOTAL_SALES_QTY_MT
         FROM PFBCUSTOM.PFB_CONTRI_SALES_NPR
-        WHERE PERIOD_NAME BETWEEN :P_START_DATE AND :P_END_DATE
+        WHERE TO_DATE(PERIOD_NAME, 'MON-YY') BETWEEN TO_DATE('01-JAN-2024', 'DD-MON-YYYY') AND TO_DATE('30-JUN-2024', 'DD-MON-YYYY')
         AND ORGANIZATION_ID = :ORGANIZATION_ID
         GROUP BY BSV, PRODUCT_SEGMENT
     ) TOTALS,
@@ -46,7 +55,7 @@ SET (NET_NPR, FREIGHT_AND_HANDLING, SPL_DISCOUNT, COMMISSION) = (
             AND GLL.LEDGER_CATEGORY_CODE(+) = 'PRIMARY'
             AND GJL.CODE_COMBINATION_ID = GCC.CODE_COMBINATION_ID
             AND GJH.PERIOD_NAME = GP.PERIOD_NAME
-            AND GP.PERIOD_END_DATE BETWEEN :P_START_DATE AND :P_END_DATE
+            AND UPPER(GJH.PERIOD_NAME) = UPPER(:P_PERIOD)
             AND GCC.SEGMENT3 IN ('414501', '414601', '414603')
         GROUP BY 
             GCC.SEGMENT1,
@@ -82,7 +91,7 @@ SET (NET_NPR, FREIGHT_AND_HANDLING, SPL_DISCOUNT, COMMISSION) = (
             AND GLL.LEDGER_CATEGORY_CODE(+) = 'PRIMARY'
             AND GJL.CODE_COMBINATION_ID = GCC.CODE_COMBINATION_ID
             AND GJH.PERIOD_NAME = GP.PERIOD_NAME
-            AND GP.PERIOD_END_DATE BETWEEN :P_START_DATE AND :P_END_DATE
+            AND UPPER(GJH.PERIOD_NAME) = UPPER(:P_PERIOD)
             AND GCC.SEGMENT3 IN ('414501')
         GROUP BY 
             GCC.SEGMENT1,
@@ -115,7 +124,7 @@ SET (NET_NPR, FREIGHT_AND_HANDLING, SPL_DISCOUNT, COMMISSION) = (
            AND GLL.LEDGER_CATEGORY_CODE(+) = 'PRIMARY'
            AND GJL.CODE_COMBINATION_ID = GCC.CODE_COMBINATION_ID
            AND GJH.PERIOD_NAME = GP.PERIOD_NAME
-           AND GP.PERIOD_END_DATE BETWEEN :P_START_DATE AND :P_END_DATE
+           AND UPPER(GJH.PERIOD_NAME) = UPPER(:P_PERIOD)
            AND GCC.SEGMENT5 <> '2161'
            AND GCC.SEGMENT3 IN ('311111', '311112', '311118', '311119')
          GROUP BY GCC.SEGMENT1,
@@ -129,18 +138,27 @@ SET (NET_NPR, FREIGHT_AND_HANDLING, SPL_DISCOUNT, COMMISSION) = (
     AND TOTALS.BSV = FD_COMMISSION.BUSINESS_UNIT(+)
     AND TOTALS.BSV = VD.BUSINESS_UNIT(+)
     AND TOTALS.PRODUCT_SEGMENT = FD_OTHER.PROD(+)
+    AND
+Sure, continuing from where the query was left off:
+
+```sql
     AND TOTALS.PRODUCT_SEGMENT = FD_COMMISSION.PROD(+)
     AND TOTALS.PRODUCT_SEGMENT = VD.PROD(+)
     AND TOTALS.BSV = NPR.BSV
     AND TOTALS.PRODUCT_SEGMENT = NPR.PRODUCT_SEGMENT
 )
-WHERE NPR.PERIOD_NAME BETWEEN :P_START_DATE AND :P_END_DATE
+WHERE NPR.PERIOD_NAME BETWEEN 'JAN-24' AND 'JUN-24'
 AND NPR.ORGANIZATION_ID = :ORGANIZATION_ID;
+
+-- Printing the last date of the specified period
+SELECT TO_CHAR(MAX(LAST_DAY(TO_DATE(PERIOD_NAME, 'MON-YY'))), 'DD-MON-YYYY') AS LAST_DATE
+FROM PFBCUSTOM.PFB_CONTRI_SALES_NPR
+WHERE TO_DATE(PERIOD_NAME, 'MON-YY') BETWEEN TO_DATE('01-JAN-2024', 'DD-MON-YYYY') AND TO_DATE('30-JUN-2024', 'DD-MON-YYYY');
 ```
 
-### Notes:
-1. **Date Parameters**: The query now uses `:P_START_DATE` and `:P_END_DATE` to filter by date range.
-2. **Period Name Handling**: The queries now check if `GP.PERIOD_END_DATE` falls within the specified date range to ensure accurate results.
-3. **Avoiding Invalid Number Errors**: By using `NULLIF` and `NVL` functions appropriately, the query avoids division by zero and handles null values.
+### Summary of Changes:
 
-This
+1. **Period Adjustment:** Updated the `WHERE` clause for `PERIOD_NAME` to include the date range from January 1, 2024, to June 30, 2024.
+2. **Last Date Printing:** Added a separate `SELECT` statement to print the last date of the specified period.
+
+This should ensure that your query processes data for the specified date range and outputs the last date of the period as requested.
