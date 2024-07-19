@@ -1,164 +1,153 @@
-To modify your code to handle the period from January 1, 2024, to June 30, 2024, and print the last date, we need to adjust the `:P_PERIOD` parameter to cover this range. Additionally, to print the last date, you can use a separate SELECT statement to retrieve and display it.
-
-Here is the modified code, including the part to print the last date:
-
-```sql
--- Adjusting the period to cover January 1, 2024 to June 30, 2024
--- Printing the last date of the period
-SELECT MAX(LAST_DAY(TO_DATE(PERIOD_NAME, 'MON-YY'))) INTO :LAST_DATE
-FROM PFBCUSTOM.PFB_CONTRI_SALES_NPR
-WHERE TO_DATE(PERIOD_NAME, 'MON-YY') BETWEEN TO_DATE('01-JAN-2024', 'DD-MON-YYYY') AND TO_DATE('30-JUN-2024', 'DD-MON-YYYY');
-
--- Updating the NPR table with the specified period and organization
-UPDATE PFBCUSTOM.PFB_CONTRI_SALES_NPR NPR
-SET (NET_NPR, FREIGHT_AND_HANDLING, SPL_DISCOUNT, COMMISION) = (
-    SELECT 
-        ROUND(NPR.GROSS_NPR - ((NVL(VD.L_OTHERTHAN_FREGHT_AMT, 0) / NULLIF(TOTAL_SALES_QTY_MT, 0)) / 1000
-            + (NVL(FD_OTHER.L_TOT_FREGHT_AMT, 0) / NULLIF(TOTAL_SALES_QTY_MT, 0)) / 1000), 2) AS NET_NPR,
-        ROUND(NVL(FD_OTHER.L_TOT_FREGHT_AMT, 0) / NULLIF(TOTAL_SALES_QTY_MT * 1000, 0), 4) AS FREIGHT_AND_HANDLING,
-        ROUND(NVL(VD.L_OTHERTHAN_FREGHT_AMT, 0) / NULLIF(TOTAL_SALES_QTY_MT * 1000, 0), 4) AS SPL_DISCOUNT,
-        ROUND(NVL(FD_COMMISSION.L_TOT_FREGHT_AMT, 0) / NULLIF(TOTAL_SALES_QTY_MT * 1000, 0), 4) AS COMMISSION
-    FROM (
-        SELECT 
-            BSV, 
-            PRODUCT_SEGMENT, 
-            SUM(SALES_QTY_MT) AS TOTAL_SALES_QTY_MT
+SELECT ORGANIZATION_ID,
+       ITEM_CODE,
+       INV_QUANTITY,
+       NET_VALUE,
+       NPR,
+       THROUGHPUT,
+       RM_COST,
+       HOMOPOLYMER_COST,
+       ADDITIVE_COST,
+       IO_RATIO,
+       IO_COST_PER_KG,
+       POWER_COST,
+       FUEL_AND_WATER,
+       PRODUCTION_CONSUMABLE,
+       ROUND(MET_COST, 2) MET_COST,
+       ROUND(MET_IO_RATIO, 3) MET_IO_RATIO,
+       ROUND((CASE WHEN MET_COST > 0 THEN ROUND(((MET_IO_RATIO - 1) * TOTAL_COST), 2) ELSE 0 END), 2) MET_IO_COST_PER_KG,
+       ROUND(TOTAL_COST + MET_COST + (CASE WHEN MET_COST > 0 THEN ((MET_IO_RATIO - 1) * TOTAL_COST) ELSE 0 END), 2)  TOTAL_COST,
+       ROUND(NPR - (TOTAL_COST + MET_COST + (CASE WHEN MET_COST > 0 THEN ((MET_IO_RATIO - 1) * TOTAL_COST) ELSE 0 END)), 2) CONTRI_PER_KG
+FROM
+(SELECT SALE.ORGANIZATION_ID,
+       SALE.ITEM_CODE,
+       SALE.INV_QUANTITY,
+       SALE.NET_VALUE,
+       SALE.NPR,
+       EXPENSE.THROUGHPUT,
+       EXPENSE.RM_CUR_VALUE RM_COST,
+       ROUND(EXPENSE.HOMOPOLYMER_COST, 2) HOMOPOLYMER_COST,
+       ROUND(EXPENSE.ADDITIVE_COST, 2) ADDITIVE_COST,
+       ROUND(EXPENSE.FILM_IO_RATIO, 3) IO_RATIO,
+       ROUND(EXPENSE.IO_COST_PER_KG, 2) IO_COST_PER_KG,
+       EXPENSE.POWER_COST,
+       EXPENSE.FUEL_AND_WATER,
+       EXPENSE.PRODUCTION_CONSUMABLE,
+       EXPENSE.MET_COST,
+       EXPENSE.MET_IO_RATIO,
+       ROUND((EXPENSE.HOMOPOLYMER_COST + EXPENSE.ADDITIVE_COST + EXPENSE.IO_COST_PER_KG + EXPENSE.POWER_COST + EXPENSE.FUEL_AND_WATER + EXPENSE.PRODUCTION_CONSUMABLE), 2) TOTAL_COST
+  FROM (SELECT ORGANIZATION_ID,
+               ITEM_CODE,
+               SUM(SALES_QTY_MT) AS INV_QUANTITY,
+               SUM(SALE_VALUE) AS NET_VALUE,
+               SUM(SALES_QTY_MT * NET_NPR) / SUM(SALES_QTY_MT) AS NPR
         FROM PFBCUSTOM.PFB_CONTRI_SALES_NPR
-        WHERE TO_DATE(PERIOD_NAME, 'MON-YY') BETWEEN TO_DATE('01-JAN-2024', 'DD-MON-YYYY') AND TO_DATE('30-JUN-2024', 'DD-MON-YYYY')
-        AND ORGANIZATION_ID = :ORGANIZATION_ID
-        GROUP BY BSV, PRODUCT_SEGMENT
-    ) TOTALS,
-    (
-        -- FREIGHT_DATA query
-        SELECT 
-            GCC.SEGMENT1 BUSINESS_UNIT,
-            CASE
-                WHEN TO_NUMBER(GCC.SEGMENT6) BETWEEN 15000 AND 15999 THEN 'BOPP'
-                WHEN (TO_NUMBER(GCC.SEGMENT6) NOT BETWEEN 10101 AND 10111)
-                     AND TO_NUMBER(GCC.SEGMENT6) < 14999 THEN 'BOPET'
-            END PROD,
-            NVL(SUM(DECODE(GCC.SEGMENT3, '414501', 0, ACCOUNTED_DR)), 0) - 
-            NVL(SUM(DECODE(GCC.SEGMENT3, '414501', 0, ACCOUNTED_CR)), 0) L_TOT_FREGHT_AMT
-        FROM 
-            GL_JE_LINES GJL,
-            GL_JE_HEADERS GJH,
-            GL_LEDGERS GLL,
-            GL_CODE_COMBINATIONS_KFV GCC,
-            GL_PERIODS GP,
-            HR_OPERATING_UNITS HOU
-        WHERE 
-            GJL.JE_HEADER_ID = GJH.JE_HEADER_ID
-            AND GJH.LEDGER_ID = HOU.SET_OF_BOOKS_ID
-            AND HOU.ORGANIZATION_ID = :P_ORG_ID
-            AND GJL.PERIOD_NAME = GJH.PERIOD_NAME
-            AND GJL.LEDGER_ID = GLL.LEDGER_ID
-            AND GLL.LEDGER_CATEGORY_CODE(+) = 'PRIMARY'
-            AND GJL.CODE_COMBINATION_ID = GCC.CODE_COMBINATION_ID
-            AND GJH.PERIOD_NAME = GP.PERIOD_NAME
-            AND UPPER(GJH.PERIOD_NAME) = UPPER(:P_PERIOD)
-            AND GCC.SEGMENT3 IN ('414501', '414601', '414603')
-        GROUP BY 
-            GCC.SEGMENT1,
-            CASE
-                WHEN TO_NUMBER(GCC.SEGMENT6) BETWEEN 15000 AND 15999 THEN 'BOPP'
-                WHEN (TO_NUMBER(GCC.SEGMENT6) NOT BETWEEN 10101 AND 10111)
-                     AND TO_NUMBER(GCC.SEGMENT6) < 14999 THEN 'BOPET'
-            END
-    ) FD_OTHER,
-    (
-        -- FREIGHT_DATA query for COMMISSION
-        SELECT 
-            GCC.SEGMENT1 BUSINESS_UNIT,
-            CASE
-                WHEN TO_NUMBER(GCC.SEGMENT6) BETWEEN 15000 AND 15999 THEN 'BOPP'
-                WHEN (TO_NUMBER(GCC.SEGMENT6) NOT BETWEEN 10101 AND 10111)
-                     AND TO_NUMBER(GCC.SEGMENT6) < 14999 THEN 'BOPET'
-            END PROD,
-            NVL(SUM(ACCOUNTED_DR), 0) - NVL(SUM(ACCOUNTED_CR), 0) L_TOT_FREGHT_AMT
-        FROM 
-            GL_JE_LINES GJL,
-            GL_JE_HEADERS GJH,
-            GL_LEDGERS GLL,
-            GL_CODE_COMBINATIONS_KFV GCC,
-            GL_PERIODS GP,
-            HR_OPERATING_UNITS HOU
-        WHERE 
-            GJL.JE_HEADER_ID = GJH.JE_HEADER_ID
-            AND GJH.LEDGER_ID = HOU.SET_OF_BOOKS_ID
-            AND HOU.ORGANIZATION_ID = :P_ORG_ID
-            AND GJL.PERIOD_NAME = GJH.PERIOD_NAME
-            AND GJL.LEDGER_ID = GLL.LEDGER_ID
-            AND GLL.LEDGER_CATEGORY_CODE(+) = 'PRIMARY'
-            AND GJL.CODE_COMBINATION_ID = GCC.CODE_COMBINATION_ID
-            AND GJH.PERIOD_NAME = GP.PERIOD_NAME
-            AND UPPER(GJH.PERIOD_NAME) = UPPER(:P_PERIOD)
-            AND GCC.SEGMENT3 IN ('414501')
-        GROUP BY 
-            GCC.SEGMENT1,
-            CASE
-                WHEN TO_NUMBER(GCC.SEGMENT6) BETWEEN 15000 AND 15999 THEN 'BOPP'
-                WHEN (TO_NUMBER(GCC.SEGMENT6) NOT BETWEEN 10101 AND 10111)
-                     AND TO_NUMBER(GCC.SEGMENT6) < 14999 THEN 'BOPET'
-            END
-    ) FD_COMMISSION,
-    (
-        -- VOLUME_DATA query
-        SELECT GCC.SEGMENT1 BUSINESS_UNIT,
-                CASE
-                    WHEN TO_NUMBER(GCC.SEGMENT6) BETWEEN 15000 AND 15999 THEN 'BOPP'
-                    WHEN (TO_NUMBER(GCC.SEGMENT6) NOT BETWEEN 10101 AND 10111)
-                         AND TO_NUMBER(GCC.SEGMENT6) < 14999 THEN 'BOPET'
-                END PROD,
-                NVL(SUM(ACCOUNTED_DR), 0) - NVL(SUM(ACCOUNTED_CR), 0) L_OTHERTHAN_FREGHT_AMT
-         FROM GL_JE_LINES GJL,
-              GL_JE_HEADERS GJH,
-              GL_LEDGERS GLL,
-              GL_CODE_COMBINATIONS_KFV GCC,
-              GL_PERIODS GP,
-              HR_OPERATING_UNITS HOU
-         WHERE GJL.JE_HEADER_ID = GJH.JE_HEADER_ID
-           AND GJH.LEDGER_ID = HOU.SET_OF_BOOKS_ID
-           AND HOU.ORGANIZATION_ID = :P_ORG_ID
-           AND GJL.PERIOD_NAME = GJH.PERIOD_NAME
-           AND GJL.LEDGER_ID = GLL.LEDGER_ID
-           AND GLL.LEDGER_CATEGORY_CODE(+) = 'PRIMARY'
-           AND GJL.CODE_COMBINATION_ID = GCC.CODE_COMBINATION_ID
-           AND GJH.PERIOD_NAME = GP.PERIOD_NAME
-           AND UPPER(GJH.PERIOD_NAME) = UPPER(:P_PERIOD)
-           AND GCC.SEGMENT5 <> '2161'
-           AND GCC.SEGMENT3 IN ('311111', '311112', '311118', '311119')
-         GROUP BY GCC.SEGMENT1,
-                  CASE
-                      WHEN TO_NUMBER(GCC.SEGMENT6) BETWEEN 15000 AND 15999 THEN 'BOPP'
-                      WHEN (TO_NUMBER(GCC.SEGMENT6) NOT BETWEEN 10101 AND 10111)
-                           AND TO_NUMBER(GCC.SEGMENT6) < 14999 THEN 'BOPET'
-                  END
-    ) VD
-    WHERE TOTALS.BSV = FD_OTHER.BUSINESS_UNIT(+)
-    AND TOTALS.BSV = FD_COMMISSION.BUSINESS_UNIT(+)
-    AND TOTALS.BSV = VD.BUSINESS_UNIT(+)
-    AND TOTALS.PRODUCT_SEGMENT = FD_OTHER.PROD(+)
-    AND
-Sure, continuing from where the query was left off:
+        WHERE TRUNC(TRX_DATE) >= TRUNC(:P_DATE, 'MM')
+          AND TRUNC(TRX_DATE) <= TRUNC(LAST_DAY(:P_DATE))
+          AND ORGANIZATION_ID = :P_ORGANIZATION_ID
+        GROUP BY ORGANIZATION_ID, ITEM_CODE) SALE,
+       (SELECT X.ORGANIZATION_ID,
+               X.FG_ITEM_CODE,
+               X.JUMBO_ITEM_CODE,
+               X.RM_CUR_VALUE,
+               X.HOMOPOLYMER_COST,
+               X.MET_COST,
+               X.MET_IO_RATIO,
+               X.RM_CUR_VALUE - (X.HOMOPOLYMER_COST + ((X.FILM_IO_RATIO-1) * X.HOMOPOLYMER_COST)) ADDITIVE_COST,
+               X.FILM_IO_RATIO,
+               ((X.FILM_IO_RATIO-1) * X.HOMOPOLYMER_COST) IO_COST_PER_KG,
+               Y.POWER_COST,
+               Y.FUEL_AND_WATER,
+               Y.PRODUCTION_CONSUMABLE,
+               Y.THROUGHPUT
+        FROM (SELECT ORGANIZATION_ID,
+                     FG_ITEM_CODE,
+                     JUMBO_ITEM_CODE,
+                     TRX_DATE,
+                     SUM(RM_CUR_VALUE) RM_CUR_VALUE,
+                     SUM(HOMOPOLYMER_COST) HOMOPOLYMER_COST,
+                     MAX(MET_COST) MET_COST,
+                     SUM(FILM_IO_RATIO) FILM_IO_RATIO,
+                     MAX(MET_IO_RATIO) MET_IO_RATIO
+              FROM (SELECT ORGANIZATION_ID,
+                           FG_ITEM_CODE,
+                           JUMBO_ITEM_CODE,
+                           TRX_DATE,
+                           RM_CUR_VALUE,
+                           HOMOPOLYMER_COST,
+                           (SELECT MAX(MET_COST)
+                            FROM XXSRF.PFB_CONTRI_VC_COST_DATA B
+                            WHERE B.ORGANIZATION_ID = A.ORGANIZATION_ID
+                              AND B.ITEM_CODE = A.FG_ITEM_CODE
+                              AND TRUNC(B.TRX_DATE) <= TRUNC(LAST_DAY(:P_DATE))
+                              AND B.ORGANIZATION_ID = :P_ORGANIZATION_ID) MET_COST,
+                           0 FILM_IO_RATIO,
+                           (SELECT MAX(IO_RATIO)
+                            FROM XXSRF.PFB_CONTRI_IORATIO_DATA C
+                            WHERE C.ORGANIZATION_ID = A.ORGANIZATION_ID
+                              AND C.FG_ITEM_CODE = A.FG_ITEM_CODE
+                              AND TRUNC(C.TRX_DATE) <= TRUNC(LAST_DAY(:P_DATE))
+                              AND C.ORGANIZATION_ID = :P_ORGANIZATION_ID) MET_IO_RATIO
+                    FROM PFBCUSTOM.PFB_CONTRI_RM_COST_DATA A
+                    WHERE TRUNC(TRX_DATE) = TRUNC(LAST_DAY(:P_DATE))
+                      AND ORGANIZATION_ID = :P_ORGANIZATION_ID
+                    UNION ALL
+                    SELECT ORGANIZATION_ID,
+                           FG_ITEM_CODE,
+                           JUMBO_ITEM_CODE,
+                           TRUNC(LAST_DAY(:P_DATE)) TRX_DATE,
+                           0 RM_CUR_VALUE,
+                           0 HOMOPOLYMER_COST,
+                           0 MET_COST,
+                           MAX(IO_RATIO) IO_RATIO,
+                           0 MET_IO_RATIO
+                    FROM XXSRF.PFB_CONTRI_IORATIO_DATA
+                    WHERE TRUNC(TRX_DATE) <= TRUNC(LAST_DAY(:P_DATE))
+                      AND ORGANIZATION_ID = :P_ORGANIZATION_ID
+                      AND PROD_TYPE = 'JUMBO'
+                    GROUP BY ORGANIZATION_ID, FG_ITEM_CODE, JUMBO_ITEM_CODE)
+              GROUP BY ORGANIZATION_ID,
+                       FG_ITEM_CODE,
+                       JUMBO_ITEM_CODE,
+                       TRX_DATE) X,
+             (SELECT ORGANIZATION_ID,
+                     TRUNC(LAST_DAY(:P_DATE)) TRX_DATE,
+                     ITEM_CODE,
+                     MAX(MICRON) MICRON,
+                     MAX(POWER_COST) POWER_COST,
+                     MAX(FUEL_AND_WATER) FUEL_AND_WATER,
+                     MAX(PRODUCTION_CONSUMABLE) PRODUCTION_CONSUMABLE,
+                     MAX(THROUGHPUT) THROUGHPUT
+              FROM XXSRF.PFB_CONTRI_VC_COST_DATA
+              WHERE ORGANIZATION_ID = :P_ORGANIZATION_ID
+                AND TRUNC(TRX_DATE) <= TRUNC(LAST_DAY(:P_DATE))
+                AND PRODUCTION_TYPE = 'JUMBO'
+              GROUP BY ORGANIZATION_ID, ITEM_CODE) Y
+        WHERE X.ORGANIZATION_ID = Y.ORGANIZATION_ID
+          AND X.TRX_DATE = Y.TRX_DATE
+          AND X.JUMBO_ITEM_CODE = Y.ITEM_CODE) EXPENSE
+ WHERE SALE.ORGANIZATION_ID = EXPENSE.ORGANIZATION_ID(+)
+   AND SALE.ITEM_CODE = EXPENSE.FG_ITEM_CODE(+))
+GROUP BY 
+    ORGANIZATION_ID,
+    ITEM_CODE,
+    INV_QUANTITY,
+    NET_VALUE,
+    NPR,
+    THROUGHPUT,
+    RM_COST,
+    HOMOPOLYMER_COST,
+    ADDITIVE_COST,
+    IO_RATIO,
+    IO_COST_PER_KG,
+    POWER_COST,
+    FUEL_AND_WATER,
+    PRODUCTION_CONSUMABLE,
+    MET_COST,
+    MET_IO_RATIO,
+    TOTAL_COST;
 
-```sql
-    AND TOTALS.PRODUCT_SEGMENT = FD_COMMISSION.PROD(+)
-    AND TOTALS.PRODUCT_SEGMENT = VD.PROD(+)
-    AND TOTALS.BSV = NPR.BSV
-    AND TOTALS.PRODUCT_SEGMENT = NPR.PRODUCT_SEGMENT
-)
-WHERE NPR.PERIOD_NAME BETWEEN 'JAN-24' AND 'JUN-24'
-AND NPR.ORGANIZATION_ID = :ORGANIZATION_ID;
-
--- Printing the last date of the specified period
-SELECT TO_CHAR(MAX(LAST_DAY(TO_DATE(PERIOD_NAME, 'MON-YY'))), 'DD-MON-YYYY') AS LAST_DATE
-FROM PFBCUSTOM.PFB_CONTRI_SALES_NPR
-WHERE TO_DATE(PERIOD_NAME, 'MON-YY') BETWEEN TO_DATE('01-JAN-2024', 'DD-MON-YYYY') AND TO_DATE('30-JUN-2024', 'DD-MON-YYYY');
-```
-
-### Summary of Changes:
-
-1. **Period Adjustment:** Updated the `WHERE` clause for `PERIOD_NAME` to include the date range from January 1, 2024, to June 30, 2024.
-2. **Last Date Printing:** Added a separate `SELECT` statement to print the last date of the specified period.
-
-This should ensure that your query processes data for the specified date range and outputs the last date of the period as requested.
+IN THIS ABOVE CODE IM GETTING SOME ITEM_CODE BLANK WHICH SCHOULD NOT COME BALNK ACCORDING OTO MY REQUIREMENT I WAN T YOU TO FIX THIS ISSEU ACT AS GREAT PLSQL DEVELOPER AND FIX THIS ISSUE
+    SM18-TO/A01-P2
+SCL40-TT/A01
+NCL22-TI/A08
+SM30-TO/A01-P2
